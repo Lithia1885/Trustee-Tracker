@@ -7,10 +7,14 @@ export function thirdTuesdayOf(year: number, monthIndex: number): Date {
 }
 
 export function nextThirdTuesday(today: Date): Date {
-  const y = today.getUTCFullYear();
-  const m = today.getUTCMonth();
+  // Compare by the user's local calendar date so the agenda holds on
+  // meeting day itself and only rolls over the morning after.
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const d = today.getDate();
+  const todayUtcMidnight = Date.UTC(y, m, d);
   const thisMonth = thirdTuesdayOf(y, m);
-  if (thisMonth.getTime() >= today.getTime()) return thisMonth;
+  if (thisMonth.getTime() >= todayUtcMidnight) return thisMonth;
   return thirdTuesdayOf(m === 11 ? y + 1 : y, (m + 1) % 12);
 }
 
