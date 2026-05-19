@@ -3,7 +3,7 @@ import {
   avatarBg,
   formatMoney,
   initials,
-  shortDate,
+  monthYear,
 } from '../design/tokens';
 import { itemHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
@@ -254,7 +254,7 @@ export function ActionCard({
         <div className="action-top-line">
           <span className="action-assignee">{action.assignee}</span>
           {action.dueHint && <span>· due {action.dueHint}</span>}
-          {assignedAt && <span>· assigned {shortDate(assignedAt.meetingDate)}</span>}
+          {assignedAt && <span>· assigned {monthYear(assignedAt.meetingDate)}</span>}
         </div>
         <div className="action-desc">{action.description}</div>
         {showItemLink && itemTitle && (
@@ -265,14 +265,14 @@ export function ActionCard({
         {action.completedNote && (
           <div className="action-note">
             {completedAt && (
-              <strong>Completed {shortDate(completedAt.meetingDate)}: </strong>
+              <strong>Completed {monthYear(completedAt.meetingDate)}: </strong>
             )}
             {action.completedNote}
           </div>
         )}
         {action.status !== 'Open' && !action.completedNote && completedAt && (
           <div className="action-meta">
-            Completed {shortDate(completedAt.meetingDate)}
+            Completed {monthYear(completedAt.meetingDate)}
           </div>
         )}
 
@@ -607,7 +607,7 @@ export function DecisionCard({
     <li className="decision-card">
       <div className="decision-head">
         <span className="badge">{decision.decisionType}</span>
-        <span className="meta">{shortDate(decision.decisionDate)}</span>
+        <span className="meta">{monthYear(decision.decisionDate)}</span>
       </div>
       <div className="decision-summary">{decision.summary}</div>
       {showItemLink && itemTitle && (

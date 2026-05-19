@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
-import { eyebrowDate, shortDate } from '../design/tokens';
+import { eyebrowDate, monthYear } from '../design/tokens';
 import { meetingHref } from '../routing/hashRoute';
 import { useStore, type MeetingDraft } from '../store/useStore';
 import type { Meeting, MeetingEntry, MeetingType } from '../types';
@@ -159,7 +159,7 @@ function MeetingCard({
         </div>
         <div className="meeting-title">{meeting.title}</div>
         <div className="meeting-meta">
-          <span>{shortDate(meeting.meetingDate)}</span>
+          <span>{monthYear(meeting.meetingDate)}</span>
           <span>
             {entryCount} {entryCount === 1 ? 'entry' : 'entries'}
           </span>

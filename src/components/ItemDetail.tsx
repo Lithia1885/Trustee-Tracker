@@ -7,6 +7,7 @@ import {
   SECTION_LABEL,
   STATUS_PILL,
   longDate,
+  monthYear,
   shortDate,
   tagDisplay,
   tagPillStyle,
@@ -435,7 +436,7 @@ function HistoryRow({ entry, isFirst }: { entry: MeetingEntry; isFirst: boolean 
   return (
     <li className={`timeline-row ${isFirst ? 'current' : ''}`}>
       <div className="timeline-head">
-        <span className="timeline-date">{shortDate(entry.meetingDate)}</span>
+        <span className="timeline-date">{monthYear(entry.meetingDate)}</span>
         <span className="timeline-section">{ENTRY_SECTION_LABEL[entry.section]}</span>
         {entry.statusChangeTo && (
           <span

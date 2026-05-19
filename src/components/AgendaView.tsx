@@ -12,6 +12,7 @@ import {
   avatarBg,
   eyebrowDate,
   initials,
+  monthYear,
   parseAssignees,
   shortDate,
   tagDisplay,
@@ -312,9 +313,9 @@ function AgendaRow({
           <span className="spacer" />
           <span className="meta-text">
             {lastDiscussedDate
-              ? shortDate(lastDiscussedDate)
+              ? monthYear(lastDiscussedDate)
               : item.firstRaisedDate
-                ? `raised ${shortDate(item.firstRaisedDate)}`
+                ? `raised ${monthYear(item.firstRaisedDate)}`
                 : ''}
             {openActions.length > 0 && <> · {openActions.length}↻</>}
           </span>
