@@ -3,8 +3,8 @@ import {
   STATUS_PILL,
   avatarBg,
   initials,
+  monthYear,
   parseAssignees,
-  shortDate,
   tagDisplay,
   tagPillStyle,
 } from '../design/tokens';
@@ -251,11 +251,11 @@ function ItemCard({ item, latest }: { item: Item; latest?: MeetingEntry }) {
         )}
         <div className="meeting-meta" style={{ marginTop: 6 }}>
           {latest ? (
-            <span>Last discussed {shortDate(latest.meetingDate)}</span>
+            <span>Last discussed {monthYear(latest.meetingDate)}</span>
           ) : item.firstRaisedDate ? (
-            <span>Raised {shortDate(item.firstRaisedDate)}</span>
+            <span>Raised {monthYear(item.firstRaisedDate)}</span>
           ) : null}
-          {item.closedDate && <span>Closed {shortDate(item.closedDate)}</span>}
+          {item.closedDate && <span>Closed {monthYear(item.closedDate)}</span>}
           {item.onHoldReason && <span>On hold</span>}
         </div>
       </a>
