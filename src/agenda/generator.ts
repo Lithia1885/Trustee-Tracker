@@ -1,11 +1,24 @@
+import {
+  isPriorMeetingOutcome,
+  selectStatusSummary,
+  type StatusSummary,
+} from '../domain/entries';
 import type { AgendaSection, Item, MeetingEntry } from '../types';
 
 export interface AgendaEntry {
   item: Item;
   section: AgendaSection;
   sortOrder: number;
+  /** Date of the last meeting that actually discussed this project. */
   lastDiscussedDate?: string;
+  /** Count of prior meeting discussions — not of pre-meeting updates. */
   priorEntryCount: number;
+  /**
+   * Where the project stands as of this agenda: the most recent update
+   * the board could have had by then, or its background notes. The
+   * screen and the printed packet both read this, so they agree.
+   */
+  summary?: StatusSummary;
 }
 
 export interface Agenda {
@@ -14,9 +27,15 @@ export interface Agenda {
   oldBusiness: AgendaEntry[];
   newBusiness: AgendaEntry[];
   tabled: AgendaEntry[];
+  /**
+   * Projects held back by a revisit date, kept out of the agenda proper
+   * but available to the follow-up appendix so nothing disappears
+   * silently.
+   */
+  deferred: AgendaEntry[];
 }
 
-const SECTION_BUCKETS: Record<AgendaSection, keyof Omit<Agenda, 'targetDate'>> = {
+const SECTION_BUCKETS: Record<AgendaSection, keyof Omit<Agenda, 'targetDate' | 'deferred'>> = {
   Update: 'updates',
   OldBusiness: 'oldBusiness',
   NewBusiness: 'newBusiness',
@@ -39,7 +58,7 @@ function indexEntriesByItem(
 ): Map<string, PriorEntryStats> {
   const byItem = new Map<string, PriorEntryStats>();
   for (const entry of entries) {
-    if (entry.meetingDate >= targetDate) continue;
+    if (!isPriorMeetingOutcome(entry, targetDate)) continue;
     const stats = byItem.get(entry.itemId) ?? { count: 0 };
     stats.count += 1;
     if (!stats.mostRecentBefore || isMoreRecent(entry, stats.mostRecentBefore)) {
@@ -85,26 +104,28 @@ export function generateAgenda(
     oldBusiness: [],
     newBusiness: [],
     tabled: [],
+    deferred: [],
   };
 
   for (const item of items) {
-    if (item.deferredUntil && item.deferredUntil > targetDate) continue;
-
     const stats = priorByItem.get(item.id);
     const hasPriorEntries = !!stats && stats.count > 0;
     const section = classify(item, hasPriorEntries);
     if (!section) continue;
 
-    const sortOrder = stats?.mostRecentBefore?.sortOrder ?? Number.POSITIVE_INFINITY;
-    const lastDiscussedDate = stats?.mostRecentBefore?.meetingDate;
-
     const entry: AgendaEntry = {
       item,
       section,
-      sortOrder,
-      lastDiscussedDate,
+      sortOrder: stats?.mostRecentBefore?.sortOrder ?? Number.POSITIVE_INFINITY,
+      lastDiscussedDate: stats?.mostRecentBefore?.meetingDate,
       priorEntryCount: stats?.count ?? 0,
+      summary: selectStatusSummary(item, entries, targetDate),
     };
+
+    if (item.deferredUntil && item.deferredUntil > targetDate) {
+      agenda.deferred.push(entry);
+      continue;
+    }
     agenda[SECTION_BUCKETS[section]].push(entry);
   }
 
@@ -112,6 +133,7 @@ export function generateAgenda(
   agenda.oldBusiness.sort(compareEntries);
   agenda.newBusiness.sort(compareEntries);
   agenda.tabled.sort(compareEntries);
+  agenda.deferred.sort(compareEntries);
 
   return agenda;
 }

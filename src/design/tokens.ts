@@ -17,23 +17,25 @@ export const TAG_COLORS: Record<Tag, string> = {
 };
 
 export const SECTION_COLOR: Record<AgendaSection, string> = {
-  Update: 'var(--sage)',
+  Update: 'var(--teal)',
   OldBusiness: 'var(--amber)',
   NewBusiness: 'var(--rose)',
   Tabled: 'var(--ink-3)',
 };
 
 export const ENTRY_SECTION_COLOR: Record<EntrySection, string> = {
-  Update: 'var(--sage)',
+  Update: 'var(--teal)',
   OldBusiness: 'var(--amber)',
   NewBusiness: 'var(--rose)',
   OtherBusiness: 'var(--ink-3)',
 };
 
+// Closed stays deliberately neutral: finished is not the same as good,
+// and a board's record should not read as a wall of green.
 export const STATUS_PILL: Record<ItemStatus, { bg: string; fg: string }> = {
-  Open: { bg: 'var(--sage-soft)', fg: 'var(--sage)' },
+  Open: { bg: 'var(--teal-soft)', fg: 'var(--teal)' },
   Tabled: { bg: 'var(--amber-soft)', fg: 'var(--amber)' },
-  Closed: { bg: '#eaeaea', fg: '#666' },
+  Closed: { bg: 'var(--surface-2)', fg: 'var(--ink-3)' },
   Declined: { bg: 'var(--rose-soft)', fg: 'var(--rose)' },
 };
 
@@ -77,7 +79,9 @@ export function tagPillStyle(tag: Tag): React.CSSProperties {
   return { background: hexAlpha(c, 0.1), color: c };
 }
 
-const AVATAR_PALETTE = ['#4a6b54', '#b87333', '#4a5d7a', '#7a4a6b', '#6b5a3a', '#3a6a6a'];
+// Ownership colors: stable per name, and each dark enough to carry
+// white initials at 4.5:1.
+const AVATAR_PALETTE = ['#4a6b54', '#8a5a24', '#4a5d7a', '#7a4a6b', '#6b5a3a', '#3a6a6a'];
 
 export function parseAssignees(value: string | undefined): string[] {
   if (!value) return [];
@@ -112,6 +116,17 @@ export function monthYear(iso: string | undefined): string {
   if (!iso) return '';
   const d = new Date(iso + 'T00:00:00');
   return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+}
+
+/**
+ * A precise day, spelled out. Elsewhere dates are shown as "Sep 26",
+ * meaning September 2026 — so anywhere an exact day matters, the month
+ * is written in full to keep the two apart.
+ */
+export function dayMonth(iso: string | undefined): string {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
 }
 
 export function longDate(iso: string | undefined): string {

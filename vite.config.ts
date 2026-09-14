@@ -12,6 +12,7 @@ export default defineConfig({
       includeAssets: [
         'icons/apple-touch-icon.png',
         'icons/icon.svg',
+        'brand/lsmc-logo-ink.svg',
         'preview.html',
         'prototypes/*.jsx',
       ],
@@ -19,8 +20,8 @@ export default defineConfig({
         name: 'Trustee Tracker',
         short_name: 'Trustee Tracker',
         description: 'Lithia Springs Methodist Trustee Tracker',
-        theme_color: '#4a6b54',
-        background_color: '#faf8f5',
+        theme_color: '#0b3f3c',
+        background_color: '#faf9f6',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',
@@ -50,19 +51,6 @@ export default defineConfig({
           {
             urlPattern: /^https:\/\/(graph\.microsoft\.com|login\.microsoftonline\.com)/,
             handler: 'NetworkOnly',
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com/,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'gfonts-css' },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'gfonts-files',
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
           },
         ],
       },

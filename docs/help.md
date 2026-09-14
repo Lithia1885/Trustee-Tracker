@@ -56,11 +56,18 @@ The app has five main screens. On desktop they are tabs down the left side. On p
 
 ### Print or share the agenda
 
-On the Agenda screen, tap **Export PDF**. It downloads a PDF named with the meeting date. You can email it or print it.
+On the Agenda screen, tap **Print agenda**. It downloads a PDF named with the meeting date. You can email it or print it. Nobody needs an account to read it.
+
+Next to the date picker there's a checkbox, **Add follow-up pages to the printout**, on by default. It adds a clearly labelled **Follow-up** section after the agenda:
+
+- Every open action item, grouped by who owes it, with the project and the due wording exactly as it was typed. Work nobody has taken is listed on its own under "Not assigned to anyone yet".
+- Every project that's waiting — tabled, on hold, or deferred — with its reason and revisit date.
+
+Done and dropped actions never appear there. Nothing gets labelled late; the due wording is free text and the app doesn't second-guess it. Untick the box if you want the agenda alone, the way the chair has always typed it.
 
 ### Add a brand-new item to the registry
 
-1. From the Agenda or Items screen, tap the green **+** button (bottom right).
+1. From the Agenda or Items screen, tap the blue **+** button (top right).
 2. Fill in the title — that's the only required field. Everything else is optional.
 3. Pick tags, an assignee, a first-raised date, etc.
 4. **Standing item?** Check the box if this is something that comes up every meeting (like CE Mitchell Tutoring). Standing items always appear under Updates.
@@ -83,12 +90,17 @@ You have two ways to do this. Pick whichever feels easier.
 
 Once an entry exists, you can attach **action items** and **decisions** to it right there on the meeting screen.
 
-**Option B — from the item screen (best when you only need to update one item):**
+**Option B — from the item screen (best for news that arrives between meetings):**
 
 1. Open the item from the Items list or Agenda.
-2. Tap **Add update**.
-3. The app figures out which upcoming meeting this goes to. If there isn't one yet, it offers to create the next monthly meeting for you.
-4. Type what happened. Set a status change if needed. Save.
+2. Tap **Add an update for the &lt;date&gt; meeting**.
+3. Type what happened.
+4. **Date reported** defaults to today — change it to the day you actually heard it. That date is what decides where the update sits in the project's history.
+5. Set a status change if needed. Save.
+
+The difference between the two matters on paper. An entry recorded from the **meeting** screen is what the board decided that night, so it prints on the *next* meeting's agenda. An update added from the **item** screen is news the board has going in, so it prints on *that* meeting's agenda — which is how "Waiting on the vendor" stops being the September line when the contractor confirmed a date on September 3.
+
+If there's no upcoming meeting yet, saving creates the next regular meeting and attaches the update to it. The form says so before you save.
 
 ### Record a decision (a motion)
 
@@ -158,7 +170,8 @@ Filters stack. Clear them with the **Clear filters** button.
 ## Tips and tricks
 
 - **Markdown works** in narratives, item notes, and decision summaries. `**bold**`, `*italic*`, `- bullets`, `> quotes`, and `[link text](https://example.com)` all render. You don't have to use it.
-- **Status drift warning.** If you change an item's status through the form but it disagrees with the most recent meeting entry, you'll see a yellow banner with a one-click fix. The meeting record is the truth — trust the banner.
+- **Status follows the history, in date order.** An item's status comes from the most recent status change in its history — by *when it happened*, not when you typed it. So you can backfill June in September without undoing what July recorded. If the stored status disagrees, you'll see a banner naming both with a one-click fix. The project page also shows **Status set by**, so you can see which update decided it.
+- **Deleting the last status change puts the status back.** If you clear or delete the only entry that set a status, the item goes back to where it stood before the app started tracking it — it does not reset to Open. For old records that were never typed up, the stored status simply stands; the page says so.
 - **Sort order in a section** comes from the previous meeting's discussion order. If you want to reorder, edit a meeting entry's **Sort order** field (smaller numbers go first; the default is 100, so use 10 / 20 / 30 to put something at the top).
 - **Standing items** always go under Updates regardless of history. Use it for things like CE Mitchell Tutoring or the Harness Capital Campaign that get a "no big changes" update every month.
 - **The next-third-Tuesday default** assumes regular meetings. If you're working on a special meeting, just change the date.
@@ -176,7 +189,16 @@ Filters stack. Clear them with the **Clear filters** button.
 - **An item is in the wrong section.** Either change its **Default section** (force it), or just leave it and the next meeting entry will put it where you want.
 - **I made a typo in a meeting entry.** Open the meeting, find the entry, tap **Edit entry**. Same for decisions and action items.
 - **I want to delete a meeting entry.** Open the meeting, edit the entry, scroll to **Delete entry**. Confirm. The linked actions and decisions stay but unlink — usually fine, but be aware.
-- **I'm getting an error / blank screen.** Try the **Retry** button. If that doesn't work, refresh the page. If that still doesn't work, tell Bart and include what you were doing.
+- **I'm getting an error / blank screen.** Try the **Try again** button. If that doesn't work, refresh the page. If that still doesn't work, tell Bart and include what you were doing.
+
+### When a save goes wrong
+
+The app tells you exactly what happened to the record, because the right thing to do next is different in each case. Read the heading:
+
+- **Not saved.** Nothing reached SharePoint. Your text is still in the form — fix whatever it names and press Save again.
+- **Saved — one step left.** The record is safely in SharePoint, but something after it didn't finish (usually applying the status, or reloading the screen). Press **Finish saving**. Do **not** type it in again; you'd end up with two copies.
+- **Not sure this was saved.** The connection dropped before we heard back. Press **Check again** — the app looks in SharePoint to see whether it landed, instead of sending it a second time. Don't re-type it until it tells you.
+- **Already saving.** You pressed Save twice. Give it a moment.
 
 ---
 
@@ -189,4 +211,5 @@ Filters stack. Clear them with the **Clear filters** button.
 - **Action item** — something assigned to someone with a deadline. Linked to an entry.
 - **Standing item** — something that always appears under Updates (recurring operational topic).
 - **Tabled** — paused. Either soft (on-hold reason) or hard (deferred until a date).
-- **Drift** — when the item's status disagrees with what the last meeting entry said.
+- **Drift** — when the item's stored status disagrees with what the history says.
+- **Pre-meeting update** — news recorded between meetings and carried onto the next agenda, as opposed to what the board decided at a meeting.

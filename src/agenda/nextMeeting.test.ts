@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nextThirdTuesday, toIsoDate } from './nextMeeting';
+import { nextThirdTuesday, thirdTuesdayAfter, toIsoDate } from './nextMeeting';
 
 describe('nextThirdTuesday', () => {
   it('returns this month before meeting day', () => {
@@ -24,5 +24,19 @@ describe('nextThirdTuesday', () => {
     expect(toIsoDate(nextThirdTuesday(onMeetingDay))).toBe('2026-12-15');
     const dayAfter = new Date(2026, 11, 16, 6, 0, 0);
     expect(toIsoDate(nextThirdTuesday(dayAfter))).toBe('2027-01-19');
+  });
+});
+
+describe('thirdTuesdayAfter', () => {
+  it('looks past meeting day, so a printed agenda never points at itself', () => {
+    expect(toIsoDate(thirdTuesdayAfter(new Date(2026, 4, 19)))).toBe('2026-06-16');
+  });
+
+  it('returns this month when the date is before meeting day', () => {
+    expect(toIsoDate(thirdTuesdayAfter(new Date(2026, 4, 1)))).toBe('2026-05-19');
+  });
+
+  it('crosses the year boundary from the December meeting', () => {
+    expect(toIsoDate(thirdTuesdayAfter(new Date(2026, 11, 15)))).toBe('2027-01-19');
   });
 });

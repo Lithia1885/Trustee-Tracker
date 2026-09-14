@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { itemHref, navigateTo } from '../routing/hashRoute';
+import { SaveNotice, useSaveSubmit } from './SaveNotice';
 import { useStore, type ItemDraft } from '../store/useStore';
 import {
   TAGS,
@@ -57,8 +58,7 @@ export function ItemForm({ mode, itemId }: ItemFormProps) {
   );
 
   const [draft, setDraft] = useState<ItemDraft>(initial);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const save = useSaveSubmit();
 
   if (mode === 'edit' && !existing) {
     return (
@@ -85,12 +85,10 @@ export function ItemForm({ mode, itemId }: ItemFormProps) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft.title.trim()) {
-      setError('Title is required.');
+      save.setMessage('Give the project a title before saving.');
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
+    await save.run(async () => {
       if (mode === 'create') {
         const created = await createItem(draft);
         navigateTo(itemHref(created.id));
@@ -98,10 +96,7 @@ export function ItemForm({ mode, itemId }: ItemFormProps) {
         await updateItem(itemId, draft);
         navigateTo(itemHref(itemId));
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setSubmitting(false);
-    }
+    });
   };
 
   const cancel = () => {
@@ -253,13 +248,26 @@ export function ItemForm({ mode, itemId }: ItemFormProps) {
           />
         </label>
 
-        {error && <p className="form-error">{error}</p>}
+        <SaveNotice state={save} />
 
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
-            {submitting ? 'Saving…' : mode === 'create' ? 'Create item' : 'Save changes'}
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={save.submitting || save.blocked}
+          >
+            {save.submitting
+              ? 'Saving…'
+              : mode === 'create'
+                ? 'Create project'
+                : 'Save changes'}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={cancel} disabled={submitting}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={cancel}
+            disabled={save.submitting}
+          >
             Cancel
           </button>
         </div>

@@ -1,7 +1,10 @@
 # Trustee Tracker — Design Spec
 
-Direction B ("Operations Desk"), mobile-first. Drop this in the repo as
-`DESIGN.md` or `docs/design.md` and reference it from `CLAUDE.md`.
+Direction B ("Operations Desk"), mobile-first.
+
+The Lithia Springs identity — fonts, color roles, states and voice —
+is in [`docs/brand.md`](brand.md) and takes precedence over anything
+in this file that contradicts it.
 
 The visual prototype lives in `Trustee Tracker - Mobile B.html` /
 `Trustee Tracker - Directions.html`.
@@ -10,52 +13,32 @@ The visual prototype lives in `Trustee Tracker - Mobile B.html` /
 
 ## 1. Design tokens
 
-### Color (warm neutral, sage accent)
+**The palette and type are the church's, and they live in
+[`docs/brand.md`](brand.md).** That file is the single source for
+fonts, color roles, contrast, states and voice; `:root` in
+`src/styles.css` is the single place they are declared. This section
+records only how those tokens map onto the agenda's own vocabulary.
 
-```css
-:root {
-  /* surfaces */
-  --bg:        #faf8f5;   /* page */
-  --surface:   #ffffff;   /* cards */
-  --surface-2: #f3eee5;   /* inset panels, sheet header strip */
+### Section + status color
 
-  /* ink */
-  --ink:       #1d1d1f;   /* primary text */
-  --ink-2:     #4a4742;   /* secondary text */
-  --ink-3:     #8a8276;   /* tertiary / meta */
+`--sage` is gone; the accent is the church's teal.
 
-  /* lines */
-  --hairline:  #ece6d8;
-  --hairline-2:#d9d2c4;
-
-  /* accent + semantic */
-  --sage:      #4a6b54;   /* primary accent / Updates */
-  --sage-soft: #e6ede4;
-  --amber:     #b87333;   /* Old business, $$ caution */
-  --amber-soft:#f3e6d4;
-  --rose:      #a44a4a;   /* New business, urgent */
-  --rose-soft: #f1dcdc;
-}
-```
-
-`--sage` is the brand accent. The other three semantic colors
-(`amber`, `rose`, `ink-3`) map 1:1 to the four agenda sections:
-
-| Section       | Color    | Meaning                          |
-|---------------|----------|----------------------------------|
-| Updates       | sage     | standing, healthy                |
-| Old business  | amber    | carried forward, needs attention |
-| New business  | rose     | fresh, raised since last meeting |
-| Tabled        | ink-3    | on hold, deprioritized           |
+| Section       | Token       | Meaning                          |
+|---------------|-------------|----------------------------------|
+| Updates       | `--teal`    | standing, healthy                |
+| Old business  | `--amber`   | carried forward, needs attention |
+| New business  | `--rose`    | fresh, raised since last meeting |
+| Tabled        | `--ink-3`   | on hold, deprioritized           |
 
 Section color is always rendered as a small square dot (8×8, 2px radius)
 next to the section title, never as a fill behind the heading.
 
 ### Tag color palette
 
-Each `Tag` in `src/types.ts` gets a stable hex. Used as a colored dot
-(5–7px circle) or as a tinted pill (`background: rgba(hex, 0.10);
-color: hex; font-weight: 600`).
+Each `Tag` in `src/types.ts` gets a stable hex — a categorical palette,
+unchanged by the identity pass. Used as a colored dot (5–7px circle) or
+as a tinted pill (`background: rgba(hex, 0.10); color: hex;
+font-weight: 600`). Every one clears 4.5:1 at that tint.
 
 ```js
 const TAG_COLORS = {
@@ -77,36 +60,33 @@ const TAG_COLORS = {
 
 ### Type
 
-One family — **Inter** — at 4/5/6/7 weights. No serif. iOS / Android
-system fallback acceptable.
+Two families: **Libre Caslon Text** for page and project titles,
+**National Park** for everything you work in. Sizes and roles:
 
-```css
-font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
-```
-
-| Role                 | Size | Weight | Tracking | Notes                   |
-|----------------------|------|--------|----------|-------------------------|
-| Page title (H1)      | 22   | 700    | -0.02em  | "May 19 agenda"         |
-| Detail title (H1)    | 24   | 700    | -0.022em | item.title              |
-| Section H2 (eyebrow) | 12   | 700    | +0.08em uppercase | "Updates"      |
-| Eyebrow / breadcrumb | 10.5 | 500    | +0.12em uppercase |                |
-| Body                 | 13.5–14 | 400 | normal  | notes, fact values      |
-| Meta                 | 11–12 | 400/500 | normal | dates, counts           |
-| Numbers (stats)      | 22   | 700    | -0.02em  | `tabular-nums`          |
-| Tag pill text        | 10.5–11 | 600 | +0.01em |                         |
-| Status pill text     | 9.5–10.5 | 700 | +0.06em uppercase |        |
+| Role                 | Size | Family | Weight | Notes                   |
+|----------------------|------|--------|--------|-------------------------|
+| Page title (H1)      | 24/30 | serif | 400    | "May 19 agenda"         |
+| Detail title (H1)    | 25   | serif  | 400    | item.title              |
+| Section H2 (eyebrow) | 12   | sans   | 600 +0.08em uppercase | "Updates" |
+| Eyebrow / breadcrumb | 10.5 | sans   | 500 +0.12em uppercase |           |
+| Body                 | 13.5–14 | sans | 400   | notes, fact values      |
+| Meta                 | 11–12 | sans  | 400/500 | dates, counts         |
+| Numbers (stats)      | 22   | sans   | 600 `tabular-nums` |            |
+| Tag pill text        | 10.5–11 | sans | 600 +0.01em |                  |
+| Status pill text     | 9.5–10.5 | sans | 700 +0.06em uppercase |     |
 
 Numbers must use `font-variant-numeric: tabular-nums`.
 
 ### Radii & spacing
 
-| Token         | Value | Use                                      |
-|---------------|-------|------------------------------------------|
-| `radius-pill` | 999px | tag pills, filter chips, FAB             |
-| `radius-card` | 14px  | content cards, fact list                 |
-| `radius-row`  | 12px  | row hover/press states, primary button   |
-| `radius-tag`  | 4px   | status pills (Urgent, Dispute, Status)   |
-| `radius-sheet`| 20px 20px 0 0 | bottom sheet                     |
+| Token            | Value | Use                                   |
+|------------------|-------|---------------------------------------|
+| `radius-pill`    | 999px | tag pills, filter chips, FAB          |
+| `radius-card`    | 12px  | content cards, fact list              |
+| `radius-row`     | 10px  | row hover/press states                |
+| `radius-control` | 6px   | buttons, inputs, selects              |
+| `radius-tag`     | 4px   | status pills (Urgent, Dispute, Status)|
+| `radius-sheet`   | 20px 20px 0 0 | bottom sheet                  |
 
 Touch targets are never smaller than **44×44px**. Bottom-sheet handle is
 38×4 with 4px radius. Horizontal page padding on phone is **16px**;
@@ -121,7 +101,7 @@ vertical row padding is 12 (compact) or 14 (comfortable).
 ```
 ┌────────────────────────────────────────┐
 │ TUE · 19 MAY · 7:00 PM · FELLOWSHIP H. │  eyebrow 10.5px, ink-3, +0.12em
-│ May 19 agenda                      [+] │  H1 22px 700, FAB 38px sage
+│ May 19 agenda                      [+] │  H1 24px Caslon, FAB 38px blue
 └────────────────────────────────────────┘
 ```
 
@@ -165,10 +145,10 @@ Below the stat strip. Pill row, single-tap to filter.
 ### Item detail
 
 - Status pill ("OPEN · OLD BUSINESS") above title — uppercase 10.5/700,
-  4px radius, sage-soft bg
+  4px radius, teal-soft bg
 - Tag pills on a line below title
 - Facts card: rows of `Label / Value` divided by hairlines, 14px row text
-- Primary CTA: full-width button, sage, 14px padding, 12px radius
+- Primary CTA: full-width button, `--blue`, 13px padding, 6px radius
 - **History** timeline: 2px vertical rail at left, 12px circles at each
   entry. Most-recent entry gets a filled accent dot; older entries get
   hollow surface + hairline-2 border.
@@ -180,7 +160,7 @@ Below the stat strip. Pill row, single-tap to filter.
 - Backdrop: `rgba(0,0,0,0.35)` + 2px blur
 - Sheet: `--surface`, 20px top radius, drop shadow `0 -8px 32px rgba(0,0,0,0.18)`
 - 38×4 drag handle, 4px from top
-- Three-column header: `Cancel` (text button, `--ink-3`) — title — `Save` (filled sage pill)
+- Three-column header: `Cancel` (text button, `--ink-3`) — title — `Save` (filled blue pill)
 - "Attaching to" strip uses `--surface-2` with the section-color dot
 - Status change: equal-width segmented control of 5 options, first is
   "No change" filled `--ink`. Single-line, 11.5/600.
@@ -218,16 +198,17 @@ hard-code per-component.
 
 ```ts
 const SECTION_COLOR: Record<AgendaSection, string> = {
-  Update:      'var(--sage)',
+  Update:      'var(--teal)',
   OldBusiness: 'var(--amber)',
   NewBusiness: 'var(--rose)',
   Tabled:      'var(--ink-3)',
 };
 
+// Closed stays neutral on purpose — finished is not the same as good.
 const STATUS_PILL: Record<ItemStatus, { bg: string; fg: string }> = {
-  Open:     { bg: 'var(--sage-soft)',  fg: 'var(--sage)'  },
+  Open:     { bg: 'var(--teal-soft)',  fg: 'var(--teal)'  },
   Tabled:   { bg: 'var(--amber-soft)', fg: 'var(--amber)' },
-  Closed:   { bg: '#eaeaea',           fg: '#666'         },
+  Closed:   { bg: 'var(--surface-2)',  fg: 'var(--ink-3)' },
   Declined: { bg: 'var(--rose-soft)',  fg: 'var(--rose)'  },
 };
 ```

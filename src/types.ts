@@ -6,6 +6,15 @@ export type AgendaSection = 'Update' | 'OldBusiness' | 'NewBusiness' | 'Tabled';
 
 export type EntrySection = 'Update' | 'OldBusiness' | 'NewBusiness' | 'OtherBusiness';
 
+/**
+ * Whether an entry records what a meeting decided, or an update that
+ * arrived before that meeting and is being carried into it.
+ *
+ * Legacy rows written before the EntryKind column existed read back as
+ * `InMeeting`, which is what they were.
+ */
+export type EntryKind = 'InMeeting' | 'Premeeting';
+
 export const TAGS = [
   'Building',
   'Finance',
@@ -47,6 +56,13 @@ export interface Item {
   onHoldReason?: string;
   deferredUntil?: string;
   notes?: string;
+  /**
+   * The status this project had before the app recorded any status
+   * event for it. Restored when every status event is removed or
+   * cleared, so deleting history never silently reopens a closed
+   * project. See docs/status.md.
+   */
+  baselineStatus?: ItemStatus;
 }
 
 export interface Meeting {
@@ -75,6 +91,12 @@ export interface MeetingEntry {
   sortOrder: number;
   narrative?: string;
   statusChangeTo?: ItemStatus;
+  /**
+   * When the information was reported or took effect. Defaults to the
+   * meeting date when absent, which is what every legacy row means.
+   */
+  reportedDate?: string;
+  kind: EntryKind;
 }
 
 export interface Decision {

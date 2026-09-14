@@ -19,6 +19,7 @@ import type {
   ActionItem,
   Decision,
   DecisionType,
+  EntryKind,
   EntrySection,
   Item,
   ItemStatus,
@@ -27,6 +28,7 @@ import type {
   MeetingType,
 } from '../types';
 import { ActionCard, DecisionCard } from './ActionsDashboard';
+import { SaveNotice, useSaveSubmit } from './SaveNotice';
 
 const STATUS_OPTIONS: ItemStatus[] = ['Open', 'Tabled', 'Closed', 'Declined'];
 const SECTION_OPTIONS: EntrySection[] = ['Update', 'OldBusiness', 'NewBusiness', 'OtherBusiness'];
@@ -124,7 +126,7 @@ function MeetingHeader({ meeting }: { meeting: Meeting }) {
   return (
     <header className="detail-header">
       <div className="badge-row">
-        <span className="status-pill" style={{ background: 'var(--sage-soft)', color: 'var(--sage)' }}>
+        <span className="status-pill" style={{ background: 'var(--teal-soft)', color: 'var(--teal)' }}>
           {meeting.meetingType}
         </span>
         <span className="eyebrow" style={{ margin: 0 }}>{eyebrowDate(meeting.meetingDate)}</span>
@@ -199,21 +201,12 @@ function meetingToDraft(m: Meeting): MeetingDraft {
 function MeetingEdit({ meeting, onClose }: { meeting: Meeting; onClose: () => void }) {
   const updateMeeting = useStore((s) => s.updateMeeting);
   const [draft, setDraft] = useState<MeetingDraft>(() => meetingToDraft(meeting));
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const save = useSaveSubmit();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await updateMeeting(meeting.id, draft);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+    const ok = await save.run(() => updateMeeting(meeting.id, draft));
+    if (ok) onClose();
   };
 
   return (
@@ -326,13 +319,22 @@ function MeetingEdit({ meeting, onClose }: { meeting: Meeting; onClose: () => vo
           onChange={(e) => setDraft({ ...draft, openCloseNextMonth: e.target.value })}
         />
       </label>
-      {error && <p className="form-error">{error}</p>}
+      <SaveNotice state={save} />
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Save meeting'}
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={save.submitting || save.blocked}
+        >
+          {save.submitting ? 'Saving…' : 'Save meeting'}
         </button>
-        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
-          Cancel
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onClose}
+          disabled={save.submitting}
+        >
+          {save.blocked ? 'Close' : 'Cancel'}
         </button>
       </div>
     </form>
@@ -356,8 +358,7 @@ function AddEntry({
   const [section, setSection] = useState<EntrySection>('OldBusiness');
   const [narrative, setNarrative] = useState('');
   const [statusChangeTo, setStatusChangeTo] = useState<ItemStatus | ''>('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const save = useSaveSubmit();
 
   const candidateItems = useMemo(() => {
     return items.slice().sort((a, b) => {
@@ -373,36 +374,31 @@ function AddEntry({
     setSection('OldBusiness');
     setNarrative('');
     setStatusChangeTo('');
-    setError(null);
+    save.clear();
     setOpen(false);
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemId) {
-      setError('Pick an item.');
+      save.setMessage('Pick the project this entry belongs to.');
       return;
     }
     if (!narrative.trim()) {
-      setError('Narrative is required.');
+      save.setMessage('Type what was discussed before saving.');
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await createMeetingEntry({
+    const ok = await save.run(() =>
+      createMeetingEntry({
         itemId,
         meetingId: meeting.id,
         section,
         narrative: narrative.trim(),
         statusChangeTo: statusChangeTo || undefined,
-      });
-      reset();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+        kind: 'InMeeting',
+      }),
+    );
+    if (ok) reset();
   };
 
   if (!open) {
@@ -420,7 +416,8 @@ function AddEntry({
   return (
     <form className="form" onSubmit={submit}>
       <div className="form-target">
-        Recording entry for <strong>{meeting.title}</strong>
+        What the board decided at <strong>{meeting.title}</strong>. This prints on
+        the next meeting's agenda, not this one's.
       </div>
       <label className="form-field">
         <span>Item</span>
@@ -473,13 +470,22 @@ function AddEntry({
           placeholder="What was discussed and decided…"
         />
       </label>
-      {error && <p className="form-error">{error}</p>}
+      <SaveNotice state={save} />
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Save entry'}
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={save.submitting || save.blocked}
+        >
+          {save.submitting ? 'Saving…' : 'Save entry'}
         </button>
-        <button type="button" className="btn btn-ghost" onClick={reset} disabled={submitting}>
-          Cancel
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={reset}
+          disabled={save.submitting}
+        >
+          {save.blocked ? 'Close' : 'Cancel'}
         </button>
       </div>
     </form>
@@ -558,7 +564,7 @@ function EntryRow({
     <li className={`timeline-row ${isFirst ? 'current' : ''}`}>
       <div className="timeline-head">
         {item ? (
-          <a href={itemHref(item.id)} className="timeline-date" style={{ color: 'var(--sage)' }}>
+          <a href={itemHref(item.id)} className="timeline-date" style={{ color: 'var(--blue)' }}>
             {item.title}
           </a>
         ) : (
@@ -613,6 +619,11 @@ function EntryRow({
   );
 }
 
+const KIND_LABEL: Record<EntryKind, string> = {
+  InMeeting: 'Recorded at this meeting',
+  Premeeting: 'Reported before this meeting',
+};
+
 export function EntryEditForm({
   entry,
   onClose,
@@ -629,50 +640,40 @@ export function EntryEditForm({
   const [statusChangeTo, setStatusChangeTo] = useState<ItemStatus | ''>(
     entry.statusChangeTo ?? '',
   );
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [kind, setKind] = useState<EntryKind>(entry.kind);
+  const [reportedDate, setReportedDate] = useState(entry.reportedDate ?? '');
+  const save = useSaveSubmit();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const sortOrder = Number.parseInt(sortOrderStr, 10);
     if (Number.isNaN(sortOrder)) {
-      setError('Sort order must be a number.');
+      save.setMessage('Sort order must be a whole number.');
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await updateMeetingEntry(entry.id, {
+    const ok = await save.run(() =>
+      updateMeetingEntry(entry.id, {
         section,
         sortOrder,
         narrative,
         statusChangeTo: statusChangeTo === '' ? null : statusChangeTo,
-      });
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+        kind,
+        reportedDate: reportedDate || null,
+      }),
+    );
+    if (ok) onClose();
   };
 
   const onDelete = async () => {
     if (
       !window.confirm(
-        `Delete this entry?\n\nThe narrative and any status change will be lost. Linked action items and decisions stay but lose their entry reference.`,
+        'Delete this entry?\n\nThe narrative and any status change will be lost, and the project status goes back to what the remaining history says. Linked action items and decisions stay but lose their entry reference.',
       )
     ) {
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
-      await deleteMeetingEntry(entry.id);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setSubmitting(false);
-    }
+    const ok = await save.run(() => deleteMeetingEntry(entry.id));
+    if (ok) onClose();
   };
 
   return (
@@ -701,6 +702,31 @@ export function EntryEditForm({
           />
         </label>
       </div>
+      <div className="form-row">
+        <label className="form-field">
+          <span>When it happened</span>
+          <select value={kind} onChange={(e) => setKind(e.target.value as EntryKind)}>
+            {(Object.keys(KIND_LABEL) as EntryKind[]).map((k) => (
+              <option key={k} value={k}>
+                {KIND_LABEL[k]}
+              </option>
+            ))}
+          </select>
+          <span className="field-hint">
+            Entries reported beforehand print on this meeting's agenda;
+            what the meeting decided prints on the next one.
+          </span>
+        </label>
+        <label className="form-field">
+          <span>Date reported (optional)</span>
+          <input
+            type="date"
+            value={reportedDate}
+            onChange={(e) => setReportedDate(e.target.value)}
+          />
+          <span className="field-hint">Leave blank to use the meeting date.</span>
+        </label>
+      </div>
       <label className="form-field">
         <span>Status change</span>
         <select
@@ -723,21 +749,29 @@ export function EntryEditForm({
           onChange={(e) => setNarrative(e.target.value)}
         />
       </label>
-      {error && <p className="form-error">{error}</p>}
+      <SaveNotice state={save} />
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Save entry'}
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={save.submitting || save.blocked}
+        >
+          {save.submitting ? 'Saving…' : 'Save entry'}
         </button>
-        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
-          Cancel
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onClose}
+          disabled={save.submitting}
+        >
+          {save.blocked ? 'Close' : 'Cancel'}
         </button>
         <span style={{ flex: 1 }} />
         <button
           type="button"
-          className="btn btn-ghost"
+          className="btn btn-danger"
           onClick={onDelete}
-          disabled={submitting}
-          style={{ color: 'var(--rose)' }}
+          disabled={save.submitting || save.blocked}
         >
           Delete entry
         </button>
@@ -803,21 +837,12 @@ function ActionForm({
     assignee: item.assignedTo ?? '',
     dueHint: '',
   });
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const save = useSaveSubmit();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await createActionItem(draft);
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+    const ok = await save.run(() => createActionItem(draft));
+    if (ok) onClose();
   };
 
   return (
@@ -850,13 +875,22 @@ function ActionForm({
           />
         </label>
       </div>
-      {error && <p className="form-error">{error}</p>}
+      <SaveNotice state={save} />
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Add action'}
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={save.submitting || save.blocked}
+        >
+          {save.submitting ? 'Saving…' : 'Add action'}
         </button>
-        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
-          Cancel
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onClose}
+          disabled={save.submitting}
+        >
+          {save.blocked ? 'Close' : 'Cancel'}
         </button>
       </div>
     </form>
@@ -888,32 +922,22 @@ function DecisionForm({
     vendor: '',
   });
   const [amountStr, setAmountStr] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const save = useSaveSubmit();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    setError(null);
     let amount: number | undefined;
     if (amountStr.trim()) {
       const cleaned = amountStr.replace(/[^0-9.]/g, '');
       const parsed = Number.parseFloat(cleaned);
       if (Number.isNaN(parsed)) {
-        setError('Amount must be a number.');
-        setSubmitting(false);
+        save.setMessage('Amount must be a number, such as 1500 or 1712.50.');
         return;
       }
       amount = parsed;
     }
-    try {
-      await createDecision({ ...draft, amount });
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+    const ok = await save.run(() => createDecision({ ...draft, amount }));
+    if (ok) onClose();
   };
 
   return (
@@ -991,13 +1015,22 @@ function DecisionForm({
           />
         </label>
       </div>
-      {error && <p className="form-error">{error}</p>}
+      <SaveNotice state={save} />
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Add decision'}
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={save.submitting || save.blocked}
+        >
+          {save.submitting ? 'Saving…' : 'Add decision'}
         </button>
-        <button type="button" className="btn btn-ghost" onClick={onClose} disabled={submitting}>
-          Cancel
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onClose}
+          disabled={save.submitting}
+        >
+          {save.blocked ? 'Close' : 'Cancel'}
         </button>
       </div>
     </form>

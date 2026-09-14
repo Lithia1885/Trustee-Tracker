@@ -8,7 +8,19 @@ Target users: 9 trustees + pastor + lay leader + admin council chair. Not public
 
 ## Design
 
-Visual design spec: [`docs/design.md`](docs/design.md). Mobile-first "Operations Desk" direction with sage accent, Inter type, and a canonical section/status color map. All component colors and radii derive from tokens defined there — never hard-code per component.
+Brand identity: [`docs/brand.md`](docs/brand.md) — the church's Libre
+Caslon Text / National Park type, the deep green / teal / blue color
+roles, contrast and voice conventions. It is the single source for
+fonts and color; `:root` in `src/styles.css` is the single place they
+are declared.
+
+Layout spec: [`docs/design.md`](docs/design.md). Mobile-first
+"Operations Desk" direction with a canonical section/status color map.
+All component colors and radii derive from tokens — never hard-code per
+component. Where the two documents disagree, `brand.md` wins.
+
+The printed packet (`src/agenda/pdf.ts`) keeps Helvetica and its own
+layout. Application styling never changes an export.
 
 ## Tech Stack
 
@@ -22,7 +34,8 @@ Visual design spec: [`docs/design.md`](docs/design.md). Mobile-first "Operations
 ## Architecture Principles
 
 - **SharePoint lists are the data layer.** Six SharePoint lists (see schema below). MS Graph handles all reads and writes. No backend server, no database.
-- **Event trail is the source of truth.** MeetingEntries are the history. `Item.Status` is derived from the most recent MeetingEntry with a non-null `StatusChangeTo`. The Item.Status column in SharePoint is a cache of that derivation, kept in sync by the app on every MeetingEntry write.
+- **Event trail is the source of truth.** MeetingEntries are the history. `Item.Status` is derived from the latest status event **in event chronology** — not insertion order — with a deterministic tie-breaker, so backfilling old meetings cannot undo newer ones. The Item.Status column in SharePoint is a cache of that derivation, kept in sync by the app on every MeetingEntry write, edit and delete. The one implementation is `resolveItemStatus` in `src/domain/status.ts`; the rule, including the baseline that applies when no status event is left, is written up in [`docs/status.md`](docs/status.md).
+- **A record is either saved or it is not, and the app says which.** Every create distinguishes a rejected write (nothing stored), a stored record whose follow-up work failed, and an outcome the network left unknown. An unknown outcome is reconciled by looking for the record, never by re-POSTing. See `src/store/saveError.ts`.
 - **Zustand store hydrates from SharePoint on load, writes back on mutation.** Same pattern as the prayer-list app this is modeled after.
 - **No mock data layer.** The app reads from and writes to real SharePoint lists. Seed data is provided below for initial SharePoint population, not for an in-memory fake.
 
@@ -76,6 +89,7 @@ Six lists. Provisioned by hand in the SharePoint admin UI. The app reads/writes 
 | OnHoldReason | Multiple lines of text (plain) | No | When populated, agenda generator routes item to Tabled subsection. |
 | DeferredUntil | Date (date-only) | No | When set and in the future, agenda generator suppresses the item. |
 | Notes | Multiple lines of text (plain) | No | Evergreen notes not tied to a specific meeting. |
+| BaselineStatus | Choice | No | `Open`, `Tabled`, `Closed`, `Declined`. Written by the app only, when a project's first status event is recorded. Restored when every status event is removed. Optional — see [`docs/sharepoint-columns.md`](docs/sharepoint-columns.md). |
 
 ### 3. Meetings
 
@@ -106,6 +120,8 @@ Six lists. Provisioned by hand in the SharePoint admin UI. The app reads/writes 
 | SortOrder | Number (integer) | Yes | Controls within-section ordering. Space by 10s (10, 20, 30). Default: `100`. |
 | Narrative | Multiple lines of text (plain) | No | Stored as markdown. Rendered with react-markdown. |
 | StatusChangeTo | Choice | No | `Open`, `Tabled`, `Closed`, `Declined`. Leave blank when no status transition. |
+| ReportedDate | Date (date-only) | No | When the information was reported or took effect. Falls back to MeetingDate. Optional — see [`docs/sharepoint-columns.md`](docs/sharepoint-columns.md). |
+| EntryKind | Choice | No | `InMeeting` (default, and what a blank means) or `Premeeting`. Distinguishes what the meeting decided from an update the board already had going in. Optional. |
 
 ### 5. Decisions
 
@@ -141,7 +157,14 @@ Six lists. Provisioned by hand in the SharePoint admin UI. The app reads/writes 
 
 ## Agenda Generator Rules
 
-The agenda generator is a pure function. Given Items, MeetingEntries, and ActionItems, it produces a sorted agenda for a target meeting date.
+The agenda generator is a pure function. Given Items and MeetingEntries, it produces a sorted agenda for a target meeting date.
+
+**Which entries an agenda may see** (`isVisibleOnAgenda`, `src/domain/entries.ts`):
+
+- A `Premeeting` entry appears on the agenda of the meeting it is attached to, provided its effective date (`ReportedDate` ?? `MeetingDate`) is on or before the target date. It never appears on an earlier agenda.
+- An `InMeeting` entry appears only from the following agenda onward: what a meeting decides is not part of the agenda handed out at that meeting.
+
+**What counts as a prior discussion** (`isPriorMeetingOutcome`): only `InMeeting` entries at meetings before the target date. A project first reported by email in September is still New Business in September.
 
 Classification logic for each open item:
 
@@ -154,7 +177,11 @@ Classification logic for each open item:
    - If the item has no prior MeetingEntries → **New Business**
    - Otherwise → **Old Business**
 
-Within each section, sort by the `SortOrder` from the item's most recent MeetingEntry, preserving last meeting's discussion order. Items without a prior entry sort to the end, then alphabetically by title.
+Within each section, sort by the `SortOrder` from the item's most recent prior meeting outcome, preserving last meeting's discussion order. Items without a prior entry sort to the end, then alphabetically by title.
+
+Items suppressed by `DeferredUntil` are returned in `agenda.deferred` rather than dropped, so the printed follow-up pages can list them with their reason and revisit date.
+
+Each agenda entry also carries a `summary`: the single status line for that project, selected by `selectStatusSummary` — the most recent update the board could have had by the target date, falling back to `Item.Notes`. **The agenda screen and the PDF both read this**; neither picks its own.
 
 ## Patterns to Avoid
 
@@ -165,6 +192,8 @@ These are lessons from the prayer-list app that would be wrong here:
 - **Do not build maintenance/pastoral visibility filters.** All MeetingEntries are visible to all users.
 - **Do not build a mock data layer.** No MockDataSource, no in-memory fake. The app talks to SharePoint from day one. If SharePoint lists aren't provisioned yet, the app shows an error state, not fake data.
 - **Do not use SharePoint rich text fields.** All multi-line text fields are plain text. Narratives use markdown rendered by react-markdown.
+- **Do not report a save as failed when the record may exist.** Re-POSTing after an ambiguous network error is how a board record ends up with the same update twice. Reconcile first.
+- **Do not change the printed packet's typography or layout to match the app's.** Trustees read the paper; it stays familiar.
 
 ## Phased Build Plan
 
@@ -273,11 +302,19 @@ expressions:
 | Skip | `and(not(empty(item()?['DeferredUntil'])), greater(item()?['DeferredUntil'], targetDate))` |
 | Tabled | `or(equals(item()?['Status'], 'Tabled'), not(empty(item()?['OnHoldReason'])))` |
 | Updates | `equals(item()?['Standing'], true)` (after Tabled removed) |
-| Old | items with at least one MeetingEntry where MeetingDate < targetDate |
-| New | items with zero prior MeetingEntries |
+| Old | items with at least one `InMeeting` MeetingEntry where MeetingDate < targetDate |
+| New | items with zero prior `InMeeting` MeetingEntries |
 
 `DefaultSection != 'Auto'` (manual override) should win over Standing /
 prior-entries — apply it before the Standing check.
+
+The narrative the flow prints for an item is the same selection the app
+makes: the most recent entry visible to that agenda, else `Item.Notes`.
+"Visible" means a `Premeeting` entry whose `ReportedDate` (or
+`MeetingDate`) is on or before the target date, or an `InMeeting` entry
+whose `MeetingDate` is strictly before it. Filtering on `MeetingDate <
+targetDate` alone drops the pre-meeting updates the agenda exists to
+carry.
 
 ### Template placeholders
 

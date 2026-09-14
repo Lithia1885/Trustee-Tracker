@@ -2,10 +2,13 @@ import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
+import { resolveItemStatus, type StatusResolution } from '../domain/status';
+import { compareEntryChronologyDesc, effectiveDate } from '../domain/entries';
 import {
   ENTRY_SECTION_LABEL,
   SECTION_LABEL,
   STATUS_PILL,
+  dayMonth,
   longDate,
   monthYear,
   shortDate,
@@ -24,6 +27,7 @@ import type {
 } from '../types';
 import { ActionCard, DecisionCard } from './ActionsDashboard';
 import { EntryEditForm } from './MeetingDetail';
+import { SaveNotice, useSaveSubmit } from './SaveNotice';
 
 const STATUS_OPTIONS: ItemStatus[] = ['Open', 'Tabled', 'Closed', 'Declined'];
 
@@ -51,12 +55,10 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
       allEntries
         .filter((e) => e.itemId === itemId)
         .slice()
-        .sort((a, b) => {
-          if (a.meetingDate !== b.meetingDate) {
-            return b.meetingDate.localeCompare(a.meetingDate);
-          }
-          return a.sortOrder - b.sortOrder;
-        }),
+        // Newest first, by when things actually happened — an update
+        // reported between meetings sits where it belongs, not where it
+        // happened to be typed.
+        .sort(compareEntryChronologyDesc),
     [allEntries, itemId],
   );
 
@@ -85,13 +87,14 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
 
   const openActionCount = actions.filter((a) => a.status === 'Open').length;
 
-  const drift = useMemo(() => {
-    if (!item) return null;
-    const lastChange = entries.find((e) => e.statusChangeTo);
-    if (!lastChange?.statusChangeTo) return null;
-    if (lastChange.statusChangeTo === item.status) return null;
-    return { expected: lastChange.statusChangeTo, on: lastChange.meetingDate };
-  }, [item, entries]);
+  // Resolved by the same rule the reconciler uses, so the warning and
+  // the fix can never disagree about which status event is latest.
+  const resolution = useMemo(
+    () => (item ? resolveItemStatus(item, allEntries) : null),
+    [item, allEntries],
+  );
+  const drift =
+    item && resolution && resolution.status !== item.status ? resolution : null;
 
   if (!item) {
     return (
@@ -122,7 +125,7 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
         />
       )}
 
-      <Facts item={item} />
+      <Facts item={item} resolution={resolution} />
       <AddUpdate item={item} />
 
       <History entries={entries} />
@@ -149,41 +152,37 @@ function DriftBanner({
   onReconcile,
 }: {
   item: Item;
-  drift: { expected: ItemStatus; on: string };
+  drift: StatusResolution;
   onReconcile: () => Promise<void>;
 }) {
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const apply = async () => {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await onReconcile();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const save = useSaveSubmit();
   return (
     <div className="drift-banner">
       <div>
-        Status drift: most recent meeting entry on{' '}
-        <strong>{shortDate(drift.on)}</strong> set status to{' '}
-        <strong>{drift.expected}</strong>, but the item is{' '}
-        <strong>{item.status}</strong>.
+        {drift.basis === 'event' ? (
+          <>
+            The latest status change on this project — the update of{' '}
+            <strong>{shortDate(drift.on)}</strong> — sets it to{' '}
+            <strong>{drift.status}</strong>, but the project record still says{' '}
+            <strong>{item.status}</strong>.
+          </>
+        ) : (
+          <>
+            No status change is recorded on this project any more. Before its
+            history was tracked it was <strong>{drift.status}</strong>, but the
+            project record says <strong>{item.status}</strong>.
+          </>
+        )}
       </div>
-      {error && (
-        <div style={{ marginTop: 6, color: 'var(--rose)' }}>{error}</div>
-      )}
+      <SaveNotice state={save} />
       <div className="form-actions" style={{ marginTop: 8 }}>
         <button
           type="button"
           className="btn btn-primary"
-          onClick={apply}
-          disabled={submitting}
+          onClick={() => void save.run(onReconcile)}
+          disabled={save.submitting || save.blocked}
         >
-          {submitting ? 'Reconciling…' : `Set status to ${drift.expected}`}
+          {save.submitting ? 'Setting…' : `Set status to ${drift.status}`}
         </button>
       </div>
     </div>
@@ -240,7 +239,24 @@ function Header({
   );
 }
 
-function Facts({ item }: { item: Item }) {
+function statusSetBy(resolution: StatusResolution): string {
+  switch (resolution.basis) {
+    case 'event':
+      return resolution.on ? `The update of ${dayMonth(resolution.on)}` : 'A recorded update';
+    case 'baseline':
+      return 'Where it stood before any update was recorded';
+    case 'stored':
+      return 'The project record — no update has changed it';
+  }
+}
+
+function Facts({
+  item,
+  resolution,
+}: {
+  item: Item;
+  resolution: StatusResolution | null;
+}) {
   const rows: Array<[string, React.ReactNode]> = [];
   if (item.assignedTo) rows.push(['Assigned', item.assignedTo]);
   if (item.firstRaisedDate)
@@ -252,6 +268,7 @@ function Facts({ item }: { item: Item }) {
     rows.push(['Deferred until', longDate(item.deferredUntil)]);
   if (item.closedDate) rows.push(['Closed', longDate(item.closedDate)]);
   if (item.closedReason) rows.push(['Closed reason', item.closedReason]);
+  if (resolution) rows.push(['Status set by', statusSetBy(resolution)]);
   if (rows.length === 0) return null;
   return (
     <dl className="facts-card">
@@ -285,53 +302,51 @@ function AddUpdate({ item }: { item: Item }) {
   const meetings = useStore((s) => s.meetings);
   const createMeeting = useStore((s) => s.createMeeting);
   const addInterimUpdate = useStore((s) => s.addInterimUpdate);
+  const missingColumns = useStore((s) => s.missingColumns);
 
   const [open, setOpen] = useState(false);
   const [narrative, setNarrative] = useState('');
+  const [reportedDate, setReportedDate] = useState(() => toIsoDate(new Date()));
   const [statusChangeTo, setStatusChangeTo] = useState<ItemStatus | ''>('');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const save = useSaveSubmit();
 
   const target = useMemo(() => resolveTarget(meetings), [meetings]);
   const meetingExists = !!target.meeting;
+  const meetingDate = target.meeting?.meetingDate ?? target.pendingDate;
+  // Visible on that agenda only if it was reported by then.
+  const showsOnThisAgenda = reportedDate <= meetingDate;
+  const reportedDateUnsupported = missingColumns.some(
+    (c) => c.list === 'MeetingEntries' && c.field === 'ReportedDate',
+  );
 
   if (!open) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="btn btn-primary"
-        style={{ width: '100%', padding: '14px', fontSize: 15 }}
+        className="btn btn-primary btn-block"
       >
-        + Add update for {meetingExists ? target.meeting!.title : `${shortDate(target.pendingDate)} meeting`}
+        Add an update for the {dayMonth(meetingDate)} meeting
       </button>
     );
   }
 
   const reset = () => {
     setNarrative('');
+    setReportedDate(toIsoDate(new Date()));
     setStatusChangeTo('');
-    setError(null);
+    save.clear();
     setOpen(false);
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!narrative.trim()) {
-      setError('Narrative is required.');
+      save.setMessage('Type what happened before saving.');
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
+    const ok = await save.run(async () => {
       let meetingId = target.meeting?.id;
       if (!meetingId) {
-        const confirmed = window.confirm(
-          `No future meeting exists. Create ${target.pendingDate} (Regular) and attach this update?`,
-        );
-        if (!confirmed) {
-          setSubmitting(false);
-          return;
-        }
         const created = await createMeeting({ meetingDate: target.pendingDate });
         meetingId = created.id;
       }
@@ -339,14 +354,11 @@ function AddUpdate({ item }: { item: Item }) {
         itemId: item.id,
         meetingId,
         narrative: narrative.trim(),
+        reportedDate,
         statusChangeTo: statusChangeTo || undefined,
       });
-      reset();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+    });
+    if (ok) reset();
   };
 
   return (
@@ -354,12 +366,16 @@ function AddUpdate({ item }: { item: Item }) {
       <div className="form-target">
         {meetingExists ? (
           <>
-            Attaching to <strong>{target.meeting!.title}</strong>
+            Goes to the <strong>{dayMonth(meetingDate)}</strong> meeting.{' '}
+            {showsOnThisAgenda
+              ? 'It will print on that agenda.'
+              : 'Reported after that meeting date, so it will print on a later agenda.'}
           </>
         ) : (
           <>
-            No future meeting yet — will create{' '}
-            <strong>{target.pendingDate} Regular</strong> on submit
+            No meeting exists yet. Saving creates the{' '}
+            <strong>{dayMonth(target.pendingDate)}</strong> regular meeting and
+            attaches this update to it.
           </>
         )}
       </div>
@@ -373,32 +389,56 @@ function AddUpdate({ item }: { item: Item }) {
           autoFocus
         />
       </label>
-      <label className="form-field">
-        <span>Status change (optional)</span>
-        <select
-          value={statusChangeTo}
-          onChange={(e) => setStatusChangeTo(e.target.value as ItemStatus | '')}
-        >
-          <option value="">No change</option>
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-      </label>
-      {error && <p className="form-error">{error}</p>}
+      <div className="form-row">
+        <label className="form-field">
+          <span>Date reported</span>
+          <input
+            type="date"
+            value={reportedDate}
+            onChange={(e) => setReportedDate(e.target.value)}
+          />
+          <span className="field-hint">
+            When you heard it — not when the meeting is.
+          </span>
+        </label>
+        <label className="form-field">
+          <span>Status change (optional)</span>
+          <select
+            value={statusChangeTo}
+            onChange={(e) => setStatusChangeTo(e.target.value as ItemStatus | '')}
+          >
+            <option value="">No change</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {reportedDateUnsupported && (
+        <p className="notice notice-info">
+          This site has no ReportedDate column yet, so updates between
+          meetings are filed on the meeting date and print on the agenda
+          after it. See docs/sharepoint-columns.md.
+        </p>
+      )}
+      <SaveNotice state={save} />
       <div className="form-actions">
-        <button type="submit" className="btn btn-primary" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Save update'}
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={save.submitting || save.blocked}
+        >
+          {save.submitting ? 'Saving…' : 'Save update'}
         </button>
         <button
           type="button"
           onClick={reset}
           className="btn btn-ghost"
-          disabled={submitting}
+          disabled={save.submitting}
         >
-          Cancel
+          {save.blocked ? 'Close' : 'Cancel'}
         </button>
       </div>
     </form>
@@ -436,8 +476,13 @@ function HistoryRow({ entry, isFirst }: { entry: MeetingEntry; isFirst: boolean 
   return (
     <li className={`timeline-row ${isFirst ? 'current' : ''}`}>
       <div className="timeline-head">
-        <span className="timeline-date">{monthYear(entry.meetingDate)}</span>
+        <span className="timeline-date">{monthYear(effectiveDate(entry))}</span>
         <span className="timeline-section">{ENTRY_SECTION_LABEL[entry.section]}</span>
+        {entry.kind === 'Premeeting' && (
+          <span className="meta">
+            Reported {dayMonth(effectiveDate(entry))}, before the meeting
+          </span>
+        )}
         {entry.statusChangeTo && (
           <span
             className="status-pill"

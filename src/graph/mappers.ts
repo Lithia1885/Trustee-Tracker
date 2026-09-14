@@ -4,6 +4,7 @@ import type {
   Decision,
   DecisionType,
   DefaultSection,
+  EntryKind,
   EntrySection,
   Item,
   ItemStatus,
@@ -31,6 +32,7 @@ const ENTRY_SECTIONS: readonly EntrySection[] = [
   'NewBusiness',
   'OtherBusiness',
 ];
+const ENTRY_KINDS: readonly EntryKind[] = ['InMeeting', 'Premeeting'];
 const ACTION_STATUSES: readonly ActionStatus[] = ['Open', 'Done', 'Dropped'];
 const DECISION_TYPES: readonly DecisionType[] = [
   'Approval',
@@ -98,6 +100,7 @@ interface ItemFields {
   OnHoldReason?: string;
   DeferredUntil?: string;
   Notes?: string;
+  BaselineStatus?: string;
 }
 
 export function mapItem(row: GraphListItem<ItemFields>): Item {
@@ -117,6 +120,11 @@ export function mapItem(row: GraphListItem<ItemFields>): Item {
     onHoldReason: asString(f.OnHoldReason),
     deferredUntil: asDate(f.DeferredUntil),
     notes: asString(f.Notes),
+    // Absent until the column is provisioned, or until this project's
+    // first status event captures it.
+    baselineStatus: asString(f.BaselineStatus)
+      ? oneOf(f.BaselineStatus, ITEM_STATUSES, 'Open')
+      : undefined,
   };
 }
 
@@ -129,6 +137,8 @@ interface MeetingEntryFields {
   SortOrder?: number | string;
   Narrative?: string;
   StatusChangeTo?: string;
+  ReportedDate?: string;
+  EntryKind?: string;
 }
 
 export function mapMeetingEntry(row: GraphListItem<MeetingEntryFields>): MeetingEntry {
@@ -146,6 +156,10 @@ export function mapMeetingEntry(row: GraphListItem<MeetingEntryFields>): Meeting
     statusChangeTo: statusChangeTo
       ? oneOf(statusChangeTo, ITEM_STATUSES, 'Open')
       : undefined,
+    reportedDate: asDate(f.ReportedDate),
+    // Rows written before these columns existed are meeting outcomes,
+    // which is exactly what 'InMeeting' means.
+    kind: oneOf(f.EntryKind, ENTRY_KINDS, 'InMeeting'),
   };
 }
 

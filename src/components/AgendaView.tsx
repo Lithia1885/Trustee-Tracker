@@ -20,7 +20,7 @@ import {
 } from '../design/tokens';
 import { itemHref, newItemHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
-import type { ActionItem, AgendaSection, Tag } from '../types';
+import type { ActionItem, AgendaSection, Item, Meeting, Tag } from '../types';
 
 type FilterKey = 'all' | AgendaSection;
 
@@ -52,6 +52,7 @@ export function AgendaView() {
     toIsoDate(nextThirdTuesday(new Date())),
   );
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [withFollowUp, setWithFollowUp] = useState(true);
 
   const items = useStore((s) => s.items);
   const meetingEntries = useStore((s) => s.meetingEntries);
@@ -99,10 +100,18 @@ export function AgendaView() {
           <button
             type="button"
             className="btn"
-            onClick={() => void exportAgendaPdf(targetDate, agenda, meetingEntries, meetings)}
-            aria-label="Export agenda PDF"
+            onClick={() =>
+              void exportAgendaPdf({
+                targetDate,
+                agenda,
+                meetings,
+                items,
+                actionItems,
+                includeFollowUp: withFollowUp,
+              })
+            }
           >
-            Export PDF
+            Print agenda
           </button>
           <a href={newItemHref} className="btn-fab" aria-label="New item">
             +
@@ -110,7 +119,17 @@ export function AgendaView() {
         </div>
       </header>
 
-      <DatePickerRow targetDate={targetDate} onChange={setTargetDate} />
+      <div className="toolbar-row">
+        <DatePickerRow targetDate={targetDate} onChange={setTargetDate} />
+        <label className="inline-check">
+          <input
+            type="checkbox"
+            checked={withFollowUp}
+            onChange={(e) => setWithFollowUp(e.target.checked)}
+          />
+          <span>Add follow-up pages to the printout</span>
+        </label>
+      </div>
 
       <div className="stat-strip">
         {SECTIONS.map((section) => (
@@ -160,7 +179,7 @@ function DatePickerRow({
   onChange: (v: string) => void;
 }) {
   return (
-    <div style={{ marginBottom: 12 }}>
+    <div>
       <input
         type="date"
         value={targetDate}
@@ -264,7 +283,15 @@ function AgendaRow({
   const assignees = parseAssignees(item.assignedTo).slice(0, 2);
   const tags: Tag[] = item.tags.slice(0, 3);
   const tagOverflow = item.tags.length - tags.length;
-  const preview = item.notes ? snippet(item.notes) : undefined;
+  // Same source of truth as the printed packet: the latest update the
+  // board could have had by this date, else the background notes.
+  const preview = entry.summary ? snippet(entry.summary.text) : undefined;
+  const reportedSince =
+    entry.summary?.source === 'update' &&
+    entry.summary.date &&
+    (!lastDiscussedDate || entry.summary.date > lastDiscussedDate)
+      ? entry.summary.date
+      : undefined;
 
   return (
     <a
@@ -312,11 +339,13 @@ function AgendaRow({
           )}
           <span className="spacer" />
           <span className="meta-text">
-            {lastDiscussedDate
-              ? monthYear(lastDiscussedDate)
-              : item.firstRaisedDate
-                ? `raised ${monthYear(item.firstRaisedDate)}`
-                : ''}
+            {reportedSince
+              ? `update ${shortDate(reportedSince)}`
+              : lastDiscussedDate
+                ? monthYear(lastDiscussedDate)
+                : item.firstRaisedDate
+                  ? `raised ${monthYear(item.firstRaisedDate)}`
+                  : ''}
             {openActions.length > 0 && <> · {openActions.length}↻</>}
           </span>
         </div>
@@ -325,12 +354,15 @@ function AgendaRow({
   );
 }
 
-async function exportAgendaPdf(
-  targetDate: string,
-  agenda: Agenda,
-  meetingEntries: import('../types').MeetingEntry[],
-  meetings: import('../types').Meeting[],
-) {
+async function exportAgendaPdf(input: {
+  targetDate: string;
+  agenda: Agenda;
+  meetings: Meeting[];
+  items: Item[];
+  actionItems: ActionItem[];
+  includeFollowUp: boolean;
+}) {
+  const { targetDate, agenda, meetings, items, actionItems, includeFollowUp } = input;
   const { generateAgendaPdf } = await import('../agenda/pdf');
   const meeting = meetings.find((m) => m.meetingDate === targetDate);
   const prevMeeting = meetings
@@ -341,7 +373,9 @@ async function exportAgendaPdf(
     meeting,
     prevMeeting,
     agenda,
-    meetingEntries,
+    items,
+    actionItems,
+    includeFollowUp,
   });
   doc.save(`Trustees-Agenda-${targetDate}.pdf`);
 }
