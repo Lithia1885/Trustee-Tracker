@@ -25,6 +25,9 @@ type Phase = 'boot' | 'config-error' | 'signed-out' | 'authenticating' | 'ready'
 
 const AGENDA_HREF = '#';
 
+// The church's own wordmark, served from this origin.
+const CHURCH_LOGO = '/brand/lsmc-logo-ink.svg';
+
 interface NavItem {
   href: string;
   label: string;
@@ -139,8 +142,10 @@ export function AppShell() {
   if (phase === 'config-error') {
     return (
       <Centered>
-        <h1>Configuration error</h1>
-        <p>The app is missing required environment variables:</p>
+        <h1>This copy of the app is not configured yet</h1>
+        <p className="signin-lede">
+          These settings are missing, so there is nothing to connect to:
+        </p>
         <ul>
           {envResult.missing.map((m) => (
             <li key={m}>
@@ -148,8 +153,9 @@ export function AppShell() {
             </li>
           ))}
         </ul>
-        <p>
-          Copy <code>.env.example</code> to <code>.env.local</code> and fill in the values.
+        <p className="signin-lede">
+          Copy <code>.env.example</code> to <code>.env.local</code>, fill in the
+          values, and start the app again.
         </p>
       </Centered>
     );
@@ -158,8 +164,16 @@ export function AppShell() {
   if (phase === 'signed-out' || phase === 'authenticating') {
     return (
       <Centered>
+        <img
+          src={CHURCH_LOGO}
+          alt="Lithia Springs Methodist Church"
+          className="signin-mark"
+        />
         <h1>Trustee Tracker</h1>
-        <p>Sign in with your church Microsoft 365 account to continue.</p>
+        <p className="signin-lede">
+          The Board of Trustees' record of projects, meetings and decisions.
+          Sign in with your church Microsoft 365 account.
+        </p>
         {msalError && <p className="form-error">{msalError}</p>}
         <button
           onClick={signIn}
@@ -177,13 +191,22 @@ export function AppShell() {
       <UtilityStrip account={account} onSignOut={signOut} />
       <DesktopNav route={route} />
       {status === 'loading' || status === 'idle' ? (
-        <Centered>Loading agenda…</Centered>
+        <Centered>Loading the board's records…</Centered>
       ) : status === 'error' && error ? (
         <Centered>
-          <h1>{error.kind === 'unprovisioned' ? 'List missing' : 'Could not load'}</h1>
+          <h1>
+            {error.kind === 'unprovisioned'
+              ? 'A SharePoint list is missing'
+              : "We couldn't load the board's records"}
+          </h1>
           <p className="form-error">{error.message}</p>
-          <button onClick={retry} className="btn">
-            Retry
+          <p className="signin-lede">
+            {error.kind === 'unprovisioned'
+              ? 'Provision the list in SharePoint, then try again.'
+              : 'This is usually the connection or an expired sign-in. Try again, and sign out and back in if it keeps failing.'}
+          </p>
+          <button onClick={retry} className="btn btn-primary">
+            Try again
           </button>
         </Centered>
       ) : route.view === 'item' ? (
@@ -236,7 +259,11 @@ function DesktopNav({ route }: { route: Route }) {
   return (
     <nav className="nav-desktop">
       <a href={AGENDA_HREF} className="brand">
-        <span className="brand-mark">LS</span>
+        <img
+          src={CHURCH_LOGO}
+          alt="Lithia Springs Methodist Church"
+          className="brand-mark"
+        />
         Trustee Tracker
       </a>
       {NAV.map((item) => (

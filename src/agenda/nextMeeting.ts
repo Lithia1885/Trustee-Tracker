@@ -21,3 +21,16 @@ export function nextThirdTuesday(today: Date): Date {
 export function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
+
+/**
+ * The regular meeting that follows `date`.
+ *
+ * `nextThirdTuesday` deliberately holds on meeting day itself, so that
+ * the app keeps showing today's agenda all day. A printed agenda has to
+ * look past it: the packet handed out on May 19 must not say the next
+ * meeting is May 19.
+ */
+export function thirdTuesdayAfter(date: Date): Date {
+  const dayAfter = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+  return nextThirdTuesday(dayAfter);
+}

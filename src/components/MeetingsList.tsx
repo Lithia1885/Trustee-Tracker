@@ -3,6 +3,7 @@ import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
 import { eyebrowDate, monthYear } from '../design/tokens';
 import { meetingHref } from '../routing/hashRoute';
 import { useStore, type MeetingDraft } from '../store/useStore';
+import { SaveNotice, useSaveSubmit } from './SaveNotice';
 import type { Meeting, MeetingEntry, MeetingType } from '../types';
 
 const MEETING_TYPES: MeetingType[] = ['Regular', 'Special'];
@@ -26,8 +27,7 @@ export function MeetingsList() {
 
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState<MeetingDraft>(emptyDraft);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const save = useSaveSubmit();
 
   const sorted = useMemo(
     () => meetings.slice().sort((a, b) => b.meetingDate.localeCompare(a.meetingDate)),
@@ -37,19 +37,13 @@ export function MeetingsList() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!draft.meetingDate) {
-      setError('Meeting date is required.');
+      save.setMessage('Pick the meeting date before saving.');
       return;
     }
-    setSubmitting(true);
-    setError(null);
-    try {
+    await save.run(async () => {
       const created = await createMeetingFromDraft(draft);
       window.location.hash = meetingHref(created.id).slice(1);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+    });
   };
 
   return (
@@ -106,10 +100,14 @@ export function MeetingsList() {
               placeholder="Budget"
             />
           </label>
-          {error && <p className="form-error">{error}</p>}
+          <SaveNotice state={save} />
           <div className="form-actions">
-            <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? 'Creating…' : 'Create meeting'}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={save.submitting || save.blocked}
+            >
+              {save.submitting ? 'Creating…' : 'Create meeting'}
             </button>
             <button
               type="button"
@@ -117,9 +115,9 @@ export function MeetingsList() {
               onClick={() => {
                 setShowForm(false);
                 setDraft(emptyDraft());
-                setError(null);
+                save.clear();
               }}
-              disabled={submitting}
+              disabled={save.submitting}
             >
               Cancel
             </button>

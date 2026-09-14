@@ -1,34 +1,92 @@
-/* ─── Tokens (docs/design.md §1) ─────────────────────────────── */
+/* ─── Lithia Springs identity ─────────────────────────────────
+   Fonts, colors and voice conventions: docs/brand.md.
+   Both families are the church's own, SIL Open Font License 1.1,
+   served from /fonts (see public/fonts/OFL-*.txt).
+   ──────────────────────────────────────────────────────────── */
+@font-face {
+  font-family: 'Libre Caslon Text';
+  src: url('/fonts/libre-caslon-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Libre Caslon Text';
+  src: url('/fonts/libre-caslon-700.woff2') format('woff2');
+  font-weight: 500 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'National Park';
+  src: url('/fonts/np-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'National Park';
+  src: url('/fonts/np-600.woff2') format('woff2');
+  font-weight: 500 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'National Park';
+  src: url('/fonts/np-700.woff2') format('woff2');
+  font-weight: 700 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --bg: #faf8f5;
+  /* Type: Caslon for titles that read as headings, National Park for
+     everything you work in. */
+  --font-serif: 'Libre Caslon Text', Georgia, 'Times New Roman', serif;
+  --font-sans: 'National Park', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* surfaces */
+  --bg: #faf9f6;          /* warm white page */
   --surface: #ffffff;
-  --surface-2: #f3eee5;
+  --surface-2: #f4f2ed;   /* inset panels, sheet header strip */
 
-  --ink: #1d1d1f;
-  --ink-2: #4a4742;
-  --ink-3: #8a8276;
+  /* ink — all three clear 4.5:1 on the warm white ground */
+  --ink: #1a1c1a;
+  --ink-2: #57534c;
+  --ink-3: #6b665e;
 
-  --hairline: #ece6d8;
-  --hairline-2: #d9d2c4;
+  /* lines */
+  --hairline: #eeeae4;    /* warm separator */
+  --hairline-2: #ddd8cf;
 
-  --sage: #4a6b54;
-  --sage-soft: #e6ede4;
-  --amber: #b87333;
-  --amber-soft: #f3e6d4;
-  --rose: #a44a4a;
-  --rose-soft: #f1dcdc;
+  /* identity */
+  --green: #0b3f3c;       /* the church's deep green: identity only */
+  --teal: #007672;        /* selected context, standing/healthy state */
+  --teal-soft: #e0efee;
+  --teal-line: #b3d8d5;
+  --blue: #006db6;        /* the one primary action */
+  --blue-deep: #005a97;
+  --blue-soft: #e2eff8;
+
+  /* semantic — meaning preserved, contrast corrected */
+  --amber: #8a5a24;       /* old business, money caution */
+  --amber-soft: #f6ecdd;
+  --rose: #a03c3c;        /* new business, errors */
+  --rose-soft: #f6e3e1;
 
   --radius-pill: 999px;
-  --radius-card: 14px;
-  --radius-row: 12px;
+  --radius-card: 12px;
+  --radius-row: 10px;
+  --radius-control: 6px;
   --radius-tag: 4px;
 
-  font-family: 'Inter', -apple-system, 'SF Pro Text', system-ui, sans-serif;
+  font-family: var(--font-sans);
+  font-weight: 400;
   color: var(--ink);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'cv11', 'ss01';
 }
 
 * { box-sizing: border-box; }
@@ -41,12 +99,21 @@ button, input, select, textarea {
 }
 
 a {
-  color: var(--sage);
+  color: var(--blue);
   text-decoration: none;
 }
 a:hover { text-decoration: underline; }
 
 h1, h2, h3 { margin: 0; }
+
+code, kbd, samp, pre { font-family: var(--font-mono); }
+
+/* One focus treatment everywhere, visible on every surface. */
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
 
 /* ─── App shell ──────────────────────────────────────────────── */
 .shell {
@@ -83,7 +150,7 @@ h1, h2, h3 { margin: 0; }
   border: none;
   padding: 0;
   font: inherit;
-  color: var(--sage);
+  color: var(--blue);
   cursor: pointer;
 }
 .utility-strip .link:hover { text-decoration: underline; }
@@ -93,7 +160,8 @@ h1, h2, h3 { margin: 0; }
   display: none;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
   padding: 10px 24px;
   background: var(--surface);
   border-bottom: 1px solid var(--hairline);
@@ -110,27 +178,24 @@ h1, h2, h3 { margin: 0; }
   text-decoration: none;
 }
 .nav-desktop a.active {
-  background: var(--sage-soft);
-  color: var(--sage);
+  background: var(--teal-soft);
+  color: var(--teal);
 }
 .nav-desktop .brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--ink);
+  gap: 10px;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: 15px;
+  color: var(--green);
+  margin-right: 8px;
 }
+.nav-desktop .brand:hover { text-decoration: none; }
 .nav-desktop .brand-mark {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: var(--sage);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 11px;
-  font-weight: 700;
+  height: 18px;
+  width: auto;
+  display: block;
 }
 
 /* Phone bottom tab bar */
@@ -161,7 +226,7 @@ h1, h2, h3 { margin: 0; }
   text-transform: uppercase;
 }
 .nav-tabs a:hover { text-decoration: none; }
-.nav-tabs a.active { color: var(--sage); }
+.nav-tabs a.active { color: var(--teal); }
 .nav-tabs .tab-glyph {
   font-size: 18px;
   line-height: 1;
@@ -201,13 +266,13 @@ h1, h2, h3 { margin: 0; }
   margin-bottom: 4px;
 }
 .page-header h1 {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 400;
   line-height: 1.15;
 }
 @media (min-width: 720px) {
-  .page-header h1 { font-size: 28px; letter-spacing: -0.022em; }
+  .page-header h1 { font-size: 30px; }
 }
 
 /* Detail-page back link */
@@ -216,7 +281,7 @@ h1, h2, h3 { margin: 0; }
   align-items: center;
   gap: 4px;
   padding: 6px 0 12px;
-  color: var(--sage);
+  color: var(--blue);
   font-size: 14px;
   font-weight: 500;
 }
@@ -227,7 +292,7 @@ h1, h2, h3 { margin: 0; }
   font-size: 13px;
   font-weight: 500;
   padding: 9px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   border: 1px solid var(--hairline-2);
   background: var(--surface);
   color: var(--ink);
@@ -238,12 +303,26 @@ h1, h2, h3 { margin: 0; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn-primary {
-  background: var(--sage);
-  border-color: var(--sage);
+  background: var(--blue);
+  border-color: var(--blue);
   color: #fff;
   font-weight: 600;
 }
-.btn-primary:hover { background: #3e5a47; border-color: #3e5a47; }
+.btn-primary:hover { background: var(--blue-deep); border-color: var(--blue-deep); }
+
+/* Destructive, and never the dominant action on a screen. */
+.btn-danger {
+  background: transparent;
+  border-color: transparent;
+  color: var(--rose);
+}
+.btn-danger:hover { background: var(--rose-soft); }
+
+.btn-block {
+  width: 100%;
+  padding: 13px 14px;
+  font-size: 15px;
+}
 
 .btn-ghost {
   background: transparent;
@@ -258,7 +337,7 @@ h1, h2, h3 { margin: 0; }
   width: 38px;
   height: 38px;
   border-radius: 999px;
-  background: var(--sage);
+  background: var(--blue);
   color: #fff;
   border: none;
   font-size: 20px;
@@ -267,7 +346,7 @@ h1, h2, h3 { margin: 0; }
   cursor: pointer;
   flex: 0 0 auto;
 }
-.btn-fab:hover { background: #3e5a47; }
+.btn-fab:hover { background: var(--blue-deep); }
 
 /* ─── Filter chips ─────────────────────────────────────────────── */
 .chip-row {
@@ -305,7 +384,7 @@ h1, h2, h3 { margin: 0; }
 .stat {
   min-width: 0;
   padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: var(--radius-card);
   background: var(--surface);
   border: 1px solid var(--hairline);
   cursor: pointer;
@@ -315,7 +394,7 @@ h1, h2, h3 { margin: 0; }
 .stat:hover { background: var(--surface-2); }
 .stat .stat-n {
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -355,7 +434,7 @@ h1, h2, h3 { margin: 0; }
 }
 .section-head h2 {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--ink);
@@ -473,8 +552,8 @@ h1, h2, h3 { margin: 0; }
   font-weight: 600;
   padding: 2px 7px;
   border-radius: var(--radius-pill);
-  background: var(--sage-soft);
-  color: var(--sage);
+  background: var(--teal-soft);
+  color: var(--teal);
   font-variant-numeric: tabular-nums;
 }
 
@@ -544,10 +623,10 @@ h1, h2, h3 { margin: 0; }
   margin-bottom: 8px;
 }
 .detail-header h1 {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.022em;
-  line-height: 1.15;
+  font-family: var(--font-serif);
+  font-size: 25px;
+  font-weight: 400;
+  line-height: 1.2;
   word-break: break-word;
 }
 .detail-header .tag-row {
@@ -592,7 +671,7 @@ h1, h2, h3 { margin: 0; }
 
 .section-label {
   font-size: 11.5px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--ink-3);
@@ -643,8 +722,8 @@ h1, h2, h3 { margin: 0; }
   border: 2px solid var(--hairline-2);
 }
 .timeline-row.current::before {
-  background: var(--sage);
-  border-color: var(--sage);
+  background: var(--teal);
+  border-color: var(--teal);
 }
 .timeline-head {
   display: flex;
@@ -654,7 +733,7 @@ h1, h2, h3 { margin: 0; }
 }
 .timeline-date {
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--ink);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -694,15 +773,16 @@ h1, h2, h3 { margin: 0; }
   line-height: 1.6;
 }
 .help-prose h1 {
-  font-size: 26px;
-  font-weight: 700;
+  font-family: var(--font-serif);
+  font-size: 28px;
+  font-weight: 400;
   color: var(--ink);
-  letter-spacing: -0.01em;
   margin: 0 0 8px;
 }
 .help-prose h2 {
-  font-size: 19px;
-  font-weight: 600;
+  font-family: var(--font-serif);
+  font-size: 20px;
+  font-weight: 400;
   color: var(--ink);
   margin: 32px 0 10px;
   padding-bottom: 6px;
@@ -734,7 +814,7 @@ h1, h2, h3 { margin: 0; }
   margin: 28px 0;
 }
 .help-prose blockquote {
-  border-left: 3px solid var(--sage-soft);
+  border-left: 3px solid var(--teal-line);
   margin: 0 0 12px;
   padding: 4px 12px;
   color: var(--ink-3);
@@ -757,7 +837,7 @@ h1, h2, h3 { margin: 0; }
   background: var(--surface-2);
 }
 .help-prose a {
-  color: var(--sage);
+  color: var(--blue);
   text-decoration: underline;
 }
 
@@ -793,13 +873,13 @@ h1, h2, h3 { margin: 0; }
   margin-top: 2px;
   display: grid;
   place-items: center;
-  color: var(--sage);
+  color: var(--teal);
   font-size: 14px;
   background: var(--surface);
 }
 .action-card.done .action-checkbox {
-  background: var(--sage);
-  border-color: var(--sage);
+  background: var(--teal);
+  border-color: var(--teal);
   color: #fff;
 }
 .action-card.dropped .action-checkbox {
@@ -967,12 +1047,19 @@ h1, h2, h3 { margin: 0; }
   min-height: 4em;
   line-height: 1.45;
 }
+/* Focus is the one place teal and blue meet: the teal ring marks the
+   field you are in, and keyboard users additionally keep the global
+   blue outline. Pointer focus drops the outline to stay quiet. */
 .form-field input:focus,
 .form-field select:focus,
 .form-field textarea:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-soft);
+}
+.form-field input:focus:not(:focus-visible),
+.form-field select:focus:not(:focus-visible),
+.form-field textarea:focus:not(:focus-visible) {
   outline: none;
-  border-color: var(--sage);
-  box-shadow: 0 0 0 3px var(--sage-soft);
 }
 .form-row {
   display: grid;
@@ -1038,7 +1125,11 @@ fieldset.form-field legend {
   text-align: center;
   gap: 12px;
 }
-.centered h1 { font-size: 22px; }
+.centered h1 {
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 400;
+}
 .centered button { margin-top: 8px; }
 
 .empty {
@@ -1055,3 +1146,81 @@ fieldset.form-field legend {
 /* Hide native scrollbars where we use overflow-x */
 .hide-scrollbar { scrollbar-width: none; }
 .hide-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ─── Toolbar row (date + print options) ─────────────────────── */
+.toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+}
+
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+  min-height: 32px;
+}
+.inline-check input { margin: 0; accent-color: var(--teal); }
+
+/* Short guidance under a field, shown where the decision is made. */
+.field-hint {
+  font-size: 11.5px;
+  color: var(--ink-3);
+  line-height: 1.4;
+  font-weight: 400;
+}
+
+/* ─── Save notices ───────────────────────────────────────────
+   Three states the secretary must be able to tell apart: nothing
+   saved, saved but unfinished, and not yet known. */
+.notice {
+  border: 1px solid var(--hairline-2);
+  border-radius: var(--radius-card);
+  background: var(--surface-2);
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.notice-heading {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.notice-body { margin: 0 0 4px; }
+.notice-body:last-child { margin-bottom: 0; }
+.notice-error {
+  background: var(--rose-soft);
+  border-color: color-mix(in srgb, var(--rose) 30%, transparent);
+  color: var(--ink-2);
+}
+.notice-error .notice-heading { color: var(--rose); }
+.notice-warn {
+  background: var(--amber-soft);
+  border-color: color-mix(in srgb, var(--amber) 30%, transparent);
+}
+.notice-warn .notice-heading { color: var(--amber); }
+.notice-info {
+  background: var(--teal-soft);
+  border-color: var(--teal-line);
+}
+.notice-info .notice-heading { color: var(--teal); }
+
+/* ─── Sign-in ────────────────────────────────────────────────── */
+.signin-mark {
+  width: min(320px, 78vw);
+  height: auto;
+  margin-bottom: 4px;
+}
+.signin-lede {
+  max-width: 34em;
+  color: var(--ink-2);
+  font-size: 15px;
+  line-height: 1.55;
+  margin: 0;
+}

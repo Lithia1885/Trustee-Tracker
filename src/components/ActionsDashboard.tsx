@@ -7,6 +7,7 @@ import {
 } from '../design/tokens';
 import { itemHref } from '../routing/hashRoute';
 import { useStore } from '../store/useStore';
+import { SaveNotice, useSaveSubmit } from './SaveNotice';
 import type {
   ActionItem,
   ActionStatus,
@@ -151,8 +152,7 @@ export function ActionCard({
   const [editDescription, setEditDescription] = useState(action.description);
   const [editAssignee, setEditAssignee] = useState(action.assignee);
   const [editDueHint, setEditDueHint] = useState(action.dueHint ?? '');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const save = useSaveSubmit();
 
   const reset = () => {
     setMode('idle');
@@ -161,83 +161,51 @@ export function ActionCard({
     setEditDescription(action.description);
     setEditAssignee(action.assignee);
     setEditDueHint(action.dueHint ?? '');
-    setError(null);
+    save.clear();
   };
 
   const submitEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await updateActionItem(action.id, {
+    const ok = await save.run(() =>
+      updateActionItem(action.id, {
         description: editDescription,
         assignee: editAssignee,
         dueHint: editDueHint,
-      });
-      reset();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+      }),
+    );
+    if (ok) reset();
   };
 
   const onDelete = async () => {
     if (!window.confirm(`Delete this action item?\n\n"${action.description}"`)) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      await deleteActionItem(action.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+    await save.run(() => deleteActionItem(action.id));
   };
 
   const submitComplete = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await completeActionItem({
+    const ok = await save.run(() =>
+      completeActionItem({
         actionId: action.id,
         completedAtMeetingId: completedAtMeetingId || undefined,
         completedNote: note,
-      });
-      reset();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+      }),
+    );
+    if (ok) reset();
   };
 
   const submitDrop = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await dropActionItem({ actionId: action.id, completedNote: note });
-      reset();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+    const ok = await save.run(() =>
+      dropActionItem({ actionId: action.id, completedNote: note }),
+    );
+    if (ok) reset();
   };
 
   const reopen = async () => {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await reopenActionItem({ actionId: action.id });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+    await save.run(() => reopenActionItem({ actionId: action.id }));
   };
+
+  const submitting = save.submitting || save.blocked;
 
   const sortedMeetings = useMemo(
     () => meetings.slice().sort((a, b) => b.meetingDate.localeCompare(a.meetingDate)),
@@ -282,7 +250,7 @@ export function ActionCard({
               <>
                 <button
                   type="button"
-                  className="btn btn-primary"
+                  className="btn"
                   onClick={() => setMode('complete')}
                   disabled={submitting}
                 >
@@ -317,10 +285,9 @@ export function ActionCard({
             </button>
             <button
               type="button"
-              className="btn btn-ghost"
+              className="btn btn-danger"
               onClick={onDelete}
               disabled={submitting}
-              style={{ color: 'var(--rose)' }}
             >
               Delete
             </button>
@@ -357,7 +324,7 @@ export function ActionCard({
                 />
               </label>
             </div>
-            {error && <p className="form-error">{error}</p>}
+            <SaveNotice state={save} />
             <div className="form-actions">
               <button type="submit" className="btn btn-primary" disabled={submitting}>
                 {submitting ? 'Saving…' : 'Save'}
@@ -394,7 +361,7 @@ export function ActionCard({
                 autoFocus
               />
             </label>
-            {error && <p className="form-error">{error}</p>}
+            <SaveNotice state={save} />
             <div className="form-actions">
               <button type="submit" className="btn btn-primary" disabled={submitting}>
                 {submitting ? 'Saving…' : 'Mark done'}
@@ -417,7 +384,7 @@ export function ActionCard({
                 autoFocus
               />
             </label>
-            {error && <p className="form-error">{error}</p>}
+            <SaveNotice state={save} />
             <div className="form-actions">
               <button type="submit" className="btn btn-primary" disabled={submitting}>
                 {submitting ? 'Saving…' : 'Drop'}
@@ -457,8 +424,7 @@ export function DecisionCard({
     typeof decision.amount === 'number' ? String(decision.amount) : '',
   );
   const [vendor, setVendor] = useState(decision.vendor ?? '');
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const save = useSaveSubmit();
 
   const cancel = () => {
     setEditing(false);
@@ -469,25 +435,22 @@ export function DecisionCard({
     setVote(decision.vote ?? '');
     setAmountStr(typeof decision.amount === 'number' ? String(decision.amount) : '');
     setVendor(decision.vendor ?? '');
-    setError(null);
+    save.clear();
   };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
-    setError(null);
     let amount: number | null = null;
     if (amountStr.trim()) {
       const parsed = Number.parseFloat(amountStr.replace(/[^0-9.]/g, ''));
       if (Number.isNaN(parsed)) {
-        setError('Amount must be a number.');
-        setSubmitting(false);
+        save.setMessage('Amount must be a number, such as 1500 or 1712.50.');
         return;
       }
       amount = parsed;
     }
-    try {
-      await updateDecision(decision.id, {
+    const ok = await save.run(() =>
+      updateDecision(decision.id, {
         summary,
         decisionType,
         motionBy,
@@ -495,26 +458,17 @@ export function DecisionCard({
         vote,
         amount,
         vendor,
-      });
-      setEditing(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
-    }
+      }),
+    );
+    if (ok) setEditing(false);
   };
 
   const onDelete = async () => {
     if (!window.confirm(`Delete this decision?\n\n"${decision.summary}"`)) return;
-    setSubmitting(true);
-    setError(null);
-    try {
-      await deleteDecision(decision.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setSubmitting(false);
-    }
+    await save.run(() => deleteDecision(decision.id));
   };
+
+  const submitting = save.submitting || save.blocked;
 
   if (editing) {
     return (
@@ -589,7 +543,7 @@ export function DecisionCard({
               />
             </label>
           </div>
-          {error && <p className="form-error">{error}</p>}
+          <SaveNotice state={save} />
           <div className="form-actions">
             <button type="submit" className="btn btn-primary" disabled={submitting}>
               {submitting ? 'Saving…' : 'Save'}
@@ -642,7 +596,7 @@ export function DecisionCard({
           </span>
         )}
       </div>
-      {error && <p className="form-error">{error}</p>}
+      <SaveNotice state={save} />
       <div className="action-row-actions" style={{ marginTop: 8 }}>
         <button
           type="button"
@@ -654,10 +608,9 @@ export function DecisionCard({
         </button>
         <button
           type="button"
-          className="btn btn-ghost"
+          className="btn btn-danger"
           onClick={onDelete}
           disabled={submitting}
-          style={{ color: 'var(--rose)' }}
         >
           Delete
         </button>
