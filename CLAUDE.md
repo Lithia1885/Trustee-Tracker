@@ -19,8 +19,19 @@ Layout spec: [`docs/design.md`](docs/design.md). Mobile-first
 All component colors and radii derive from tokens — never hard-code per
 component. Where the two documents disagree, `brand.md` wins.
 
+How an installed copy keeps itself current — the hand-written service
+worker, the derived build id, the caching policy and the one persistent
+"Reload now" offer — is [`docs/updates.md`](docs/updates.md). The two
+rules that matter: HTML is never served from cache while the network
+works, and nothing reloads a running page without asking.
+
 The printed packet (`src/agenda/pdf.ts`) keeps Helvetica and its own
-layout. Application styling never changes an export.
+layout. Application styling never changes an export. jsPDF writes an
+incomplete font dictionary for the built-in fonts — a character range
+with no widths behind it — which renders as overlapping glyphs in any
+reader that does not carry its own copy of the Helvetica metrics.
+`src/agenda/pdfFonts.ts` supplies the missing half; it is attached to
+the document in `generateAgendaPdf` and must stay attached.
 
 ## Tech Stack
 
@@ -194,7 +205,8 @@ Each agenda entry also carries:
 
 ## Printed agenda rules
 
-- **The body is trimmed, the follow-up is not.** Narratives are cut to a first-sentence summary (`summarizeNarrative`) so the board can work from paper at the table; the untrimmed text is reprinted under FULL NOTES in the follow-up pages. Trimming is render-time only — nothing stored changes.
+- **The body is trimmed, the follow-up is not.** Narratives are cut to a one- or two-line summary (`summarizeNarrative`) so the board can work from paper at the table; the untrimmed text is reprinted under FULL NOTES in the follow-up pages. Trimming is render-time only — nothing stored changes.
+- **The trim keeps the outcome, not the opening.** A narrative is written as a story — why the matter came up, then what was said, then what the board did — so the first sentence is usually the least useful one in it. `summarizeNarrative` looks across the whole narrative for the last sentence carrying decision language (motion, seconded, carried, approved, cancelled, complete, declined, tabled, on hold and their kin) and prints that, with the opening sentence in front of it for subject context where there is room. With no such sentence it falls back to the opening, as before. The one implementation is shared by the packet and the agenda screen.
 - **Every line carries the date of the entry behind it.** `(Aug 18)` for a recent one, `(no update since Apr 21)` when it is stale, `(not yet discussed)` when the text came from background notes.
 - **The header names the date and time, never the room.** Where the board met is a fact for the minutes, recorded after the meeting; the agenda does not announce it. `Meeting.Location` still exists and is still edited and shown on the meeting record — it just does not reach the printed agenda.
 - **A deadline is only called late when it is a date.** `DueHint` is free text; `parseDueDate` marks `— PAST DUE` only where the wording plainly contains a date that has gone by. "next meeting" is never flagged.
@@ -210,6 +222,9 @@ These are lessons from the prayer-list app that would be wrong here:
 - **Do not use SharePoint rich text fields.** All multi-line text fields are plain text. Narratives use markdown rendered by react-markdown.
 - **Do not report a save as failed when the record may exist.** Re-POSTing after an ambiguous network error is how a board record ends up with the same update twice. Reconcile first.
 - **Do not change the printed packet's typography or layout to match the app's.** Trustees read the paper; it stays familiar.
+- **Do not reload a running page to apply an update.** A trustee writing up a meeting loses it. The worker never calls `skipWaiting()` on install; the page asks. See [`docs/updates.md`](docs/updates.md).
+- **Do not announce an update in anything that disappears on a timer.** A toast that fades after four seconds is how a copy stays a month behind. The offer is a bar that waits.
+- **Do not precache the whole assets directory.** The printing code is ~775 KB that most sessions never open. The precache list is read from the built `index.html`, not globbed.
 
 ## Phased Build Plan
 

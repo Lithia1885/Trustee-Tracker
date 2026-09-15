@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import type { Agenda, AgendaEntry } from './generator';
 import { thirdTuesdayAfter, toIsoDate } from './nextMeeting';
+import { useCompleteFontMetrics } from './pdfFonts';
 import { stripMarkdown, summarizeNarrative } from '../domain/entries';
 import { isDueHintPastDue } from '../domain/dueHint';
 import type { ActionItem, Item, Meeting } from '../types';
@@ -98,7 +99,11 @@ function makeWriter(doc: jsPDF): Writer {
 
 export function generateAgendaPdf(input: AgendaPdfInput): jsPDF {
   const { targetDate, meeting, prevMeeting, agenda } = input;
-  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  // putOnlyUsedFonts keeps the other thirteen built-in fonts, and the
+  // widths arrays they would now carry, out of a file that only ever
+  // sets Helvetica.
+  const doc = new jsPDF({ unit: 'pt', format: 'letter', putOnlyUsedFonts: true });
+  useCompleteFontMetrics(doc);
   const w = makeWriter(doc);
 
   // ── Header ───────────────────────────────────────────────────

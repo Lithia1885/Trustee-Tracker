@@ -6,6 +6,8 @@ import {
 } from '../agenda/generator';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
 import { summarizeNarrative } from '../domain/entries';
+import { isStaleChunkError } from '../pwa/chunkError';
+import { reloadToCurrentBuild } from '../pwa/registerSW';
 import {
   SECTION_COLOR,
   SECTION_LABEL,
@@ -100,6 +102,8 @@ export function AgendaView() {
     [agenda],
   );
 
+  const [printProblem, setPrintProblem] = useState<'stale' | 'failed' | null>(null);
+
   const visibleSections =
     filter === 'all' ? SECTIONS : SECTIONS.filter((s) => s === filter);
 
@@ -116,7 +120,8 @@ export function AgendaView() {
           <button
             type="button"
             className="btn"
-            onClick={() =>
+            onClick={() => {
+              setPrintProblem(null);
               void exportAgendaPdf({
                 targetDate,
                 agenda,
@@ -124,8 +129,14 @@ export function AgendaView() {
                 items,
                 actionItems,
                 includeFollowUp: withFollowUp,
-              })
-            }
+              }).catch((err) => {
+                // The printing code is loaded on demand, so this is the
+                // one place in the app a tab can reach for a chunk that
+                // a deploy has renamed out from under it.
+                setPrintProblem(isStaleChunkError(err) ? 'stale' : 'failed');
+                if (!isStaleChunkError(err)) console.error('Print failed', err);
+              });
+            }}
           >
             Print agenda
           </button>
@@ -134,6 +145,29 @@ export function AgendaView() {
           </a>
         </div>
       </header>
+
+      {printProblem && (
+        <div
+          className={printProblem === 'stale' ? 'notice notice-warn' : 'notice notice-error'}
+          role="alert"
+        >
+          <p className="notice-heading">
+            {printProblem === 'stale'
+              ? 'This page is running an older version'
+              : "The agenda didn't print"}
+          </p>
+          <p className="notice-body">
+            {printProblem === 'stale'
+              ? 'The app was updated while this tab was open, so the printing code it just reached for is no longer there. Reloading picks up the current version; nothing on this page is lost.'
+              : 'The printing code did not finish downloading. This is usually the connection rather than the app.'}
+          </p>
+          <p className="notice-body">
+            <button type="button" className="btn-primary" onClick={reloadToCurrentBuild}>
+              {printProblem === 'stale' ? 'Reload' : 'Reload the app'}
+            </button>
+          </p>
+        </div>
+      )}
 
       <div className="toolbar-row">
         <DatePickerRow targetDate={targetDate} onChange={setTargetDate} />
