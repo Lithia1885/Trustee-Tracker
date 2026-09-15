@@ -70,9 +70,9 @@ describe('generateAgenda', () => {
     expect(agenda.tabled.map((e) => e.item.id)).toEqual(['a']);
   });
 
-  it('honors explicit DefaultSection over standing/auto inference', () => {
+  it('honors explicit DefaultSection over auto inference', () => {
     const items = [
-      item({ id: 'a', title: 'Forced new', defaultSection: 'NewBusiness', standing: true }),
+      item({ id: 'a', title: 'Forced new', defaultSection: 'NewBusiness' }),
       item({ id: 'b', title: 'Forced update', defaultSection: 'Update' }),
       item({ id: 'c', title: 'Forced old', defaultSection: 'OldBusiness' }),
     ];
@@ -80,6 +80,46 @@ describe('generateAgenda', () => {
     expect(agenda.newBusiness.map((e) => e.item.id)).toEqual(['a']);
     expect(agenda.updates.map((e) => e.item.id)).toEqual(['b']);
     expect(agenda.oldBusiness.map((e) => e.item.id)).toEqual(['c']);
+  });
+
+  it('puts a standing item in Updates even when pinned elsewhere', () => {
+    // A standing item is a recurring report, not a piece of work with an
+    // end state — a treasury report does not belong in Old Business.
+    const items = [
+      item({ id: 'a', title: 'Treasury', defaultSection: 'OldBusiness', standing: true }),
+      item({ id: 'b', title: 'Pinned new', defaultSection: 'NewBusiness', standing: true }),
+    ];
+    const agenda = generateAgenda(items, [], TARGET);
+    // Neither has a prior entry, so they alphabetize by title.
+    expect(agenda.updates.map((e) => e.item.title)).toEqual(['Pinned new', 'Treasury']);
+    expect(agenda.oldBusiness).toHaveLength(0);
+    expect(agenda.newBusiness).toHaveLength(0);
+  });
+
+  it('keeps Open Discussion at the end, even when it is standing', () => {
+    const items = [
+      item({ id: 'a', title: 'Open Discussion', defaultSection: 'OtherBusiness', standing: true }),
+      item({ id: 'b', title: 'A standing report', standing: true }),
+    ];
+    const entries = [entry({ id: 'e1', itemId: 'a', meetingDate: '2026-04-21' })];
+    const agenda = generateAgenda(items, entries, TARGET);
+    expect(agenda.otherBusiness.map((e) => e.item.id)).toEqual(['a']);
+    expect(agenda.updates.map((e) => e.item.id)).toEqual(['b']);
+    expect(agenda.oldBusiness).toHaveLength(0);
+  });
+
+  it('routes a tabled Open Discussion item to Tabled, not to the end slot', () => {
+    const items = [
+      item({
+        id: 'a',
+        title: 'Open Discussion',
+        defaultSection: 'OtherBusiness',
+        status: 'Tabled',
+      }),
+    ];
+    const agenda = generateAgenda(items, [], TARGET);
+    expect(agenda.tabled.map((e) => e.item.id)).toEqual(['a']);
+    expect(agenda.otherBusiness).toHaveLength(0);
   });
 
   it('puts Auto + standing items in Updates', () => {
@@ -247,5 +287,68 @@ describe('generateAgenda — deferred projects', () => {
     const agenda = generateAgenda(items, [], TARGET);
     expect(agenda.deferred).toHaveLength(0);
     expect(agenda.newBusiness.map((e) => e.item.id)).toEqual(['a']);
+  });
+});
+
+describe('generateAgenda — status comes from the event trail', () => {
+  it('places by the resolved status, not by a drifted cached column', () => {
+    // The cached column still says Open; the history says the project
+    // was closed in July. The agenda must agree with the reconciler.
+    const items = [item({ id: 'a', title: 'Drifted', status: 'Open' })];
+    const entries = [
+      entry({
+        id: 'e1',
+        itemId: 'a',
+        meetingDate: '2026-04-21',
+        statusChangeTo: 'Closed',
+        narrative: 'Finished.',
+      }),
+    ];
+    const agenda = generateAgenda(items, entries, TARGET);
+    expect(agenda.oldBusiness).toHaveLength(0);
+    expect(agenda.newBusiness).toHaveLength(0);
+    expect(agenda.tabled).toHaveLength(0);
+  });
+
+  it('reports the resolved status on the entry it produces', () => {
+    const items = [item({ id: 'a', title: 'Drifted to tabled', status: 'Open' })];
+    const entries = [
+      entry({ id: 'e1', itemId: 'a', meetingDate: '2026-04-21', statusChangeTo: 'Tabled' }),
+    ];
+    const agenda = generateAgenda(items, entries, TARGET);
+    expect(agenda.tabled[0].status).toBe('Tabled');
+  });
+});
+
+describe('generateAgenda — narrative age', () => {
+  it('flags a summary older than two meeting cycles', () => {
+    const items = [item({ id: 'a', title: 'Shed Cleanout' })];
+    const entries = [
+      entry({
+        id: 'e1',
+        itemId: 'a',
+        meetingDate: '2026-04-21',
+        narrative: 'Art and Kevin meeting Saturday.',
+      }),
+    ];
+    const agenda = generateAgenda(items, entries, '2026-09-15');
+    expect(agenda.oldBusiness[0].stale).toBe(true);
+  });
+
+  it('does not flag last month, or the month before that', () => {
+    const items = [item({ id: 'a', title: 'Recent' }), item({ id: 'b', title: 'Two cycles' })];
+    const entries = [
+      entry({ id: 'e1', itemId: 'a', meetingDate: '2026-08-18', narrative: 'Fresh.' }),
+      entry({ id: 'e2', itemId: 'b', meetingDate: '2026-07-21', narrative: 'Still current.' }),
+    ];
+    const agenda = generateAgenda(items, entries, '2026-09-15');
+    expect(agenda.oldBusiness.map((e) => e.stale)).toEqual([false, false]);
+  });
+
+  it('never flags background notes, which carry no date', () => {
+    const items = [item({ id: 'a', title: 'Never discussed', notes: 'Background only.' })];
+    const agenda = generateAgenda(items, [], '2026-09-15');
+    expect(agenda.newBusiness[0].stale).toBe(false);
+    expect(agenda.newBusiness[0].summary?.source).toBe('background');
   });
 });

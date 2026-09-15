@@ -25,6 +25,7 @@ const DEFAULT_SECTIONS: readonly DefaultSection[] = [
   'Update',
   'OldBusiness',
   'NewBusiness',
+  'OtherBusiness',
 ];
 const ENTRY_SECTIONS: readonly EntrySection[] = [
   'Update',

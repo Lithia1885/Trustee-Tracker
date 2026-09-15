@@ -23,12 +23,13 @@ records only how those tokens map onto the agenda's own vocabulary.
 
 `--sage` is gone; the accent is the church's teal.
 
-| Section       | Token       | Meaning                          |
-|---------------|-------------|----------------------------------|
-| Updates       | `--teal`    | standing, healthy                |
-| Old business  | `--amber`   | carried forward, needs attention |
-| New business  | `--rose`    | fresh, raised since last meeting |
-| Tabled        | `--ink-3`   | on hold, deprioritized           |
+| Section         | Token       | Meaning                          |
+|-----------------|-------------|----------------------------------|
+| Updates         | `--teal`    | standing, healthy                |
+| Old business    | `--amber`   | carried forward, needs attention |
+| New business    | `--rose`    | fresh, raised since last meeting |
+| Open discussion | `--green`   | taken at the end, every meeting  |
+| Tabled          | `--ink-3`   | on hold, deprioritized           |
 
 Section color is always rendered as a small square dot (8×8, 2px radius)
 next to the section title, never as a fill behind the heading.
@@ -198,10 +199,11 @@ hard-code per-component.
 
 ```ts
 const SECTION_COLOR: Record<AgendaSection, string> = {
-  Update:      'var(--teal)',
-  OldBusiness: 'var(--amber)',
-  NewBusiness: 'var(--rose)',
-  Tabled:      'var(--ink-3)',
+  Update:        'var(--teal)',
+  OldBusiness:   'var(--amber)',
+  NewBusiness:   'var(--rose)',
+  OtherBusiness: 'var(--green)',
+  Tabled:        'var(--ink-3)',
 };
 
 // Closed stays neutral on purpose — finished is not the same as good.

@@ -1,9 +1,11 @@
 import {
   isPriorMeetingOutcome,
+  isSummaryStale,
   selectStatusSummary,
   type StatusSummary,
 } from '../domain/entries';
-import type { AgendaSection, Item, MeetingEntry } from '../types';
+import { resolveItemStatus } from '../domain/status';
+import type { AgendaSection, Item, ItemStatus, MeetingEntry } from '../types';
 
 export interface AgendaEntry {
   item: Item;
@@ -19,6 +21,17 @@ export interface AgendaEntry {
    * screen and the printed packet both read this, so they agree.
    */
   summary?: StatusSummary;
+  /**
+   * The project's status as the event trail reads it, which is what
+   * placed it in this section. Resolved rather than read off the cached
+   * column, so the agenda can never disagree with the reconciler.
+   */
+  status: ItemStatus;
+  /**
+   * The summary predates this meeting by more than two monthly cycles,
+   * so its present tense is no longer the present.
+   */
+  stale: boolean;
 }
 
 export interface Agenda {
@@ -27,6 +40,11 @@ export interface Agenda {
   oldBusiness: AgendaEntry[];
   newBusiness: AgendaEntry[];
   tabled: AgendaEntry[];
+  /**
+   * Standing business that is not one of the three numbered sections —
+   * Open Discussion and the like. Printed at the end of the agenda.
+   */
+  otherBusiness: AgendaEntry[];
   /**
    * Projects held back by a revisit date, kept out of the agenda proper
    * but available to the follow-up appendix so nothing disappears
@@ -39,6 +57,7 @@ const SECTION_BUCKETS: Record<AgendaSection, keyof Omit<Agenda, 'targetDate' | '
   Update: 'updates',
   OldBusiness: 'oldBusiness',
   NewBusiness: 'newBusiness',
+  OtherBusiness: 'otherBusiness',
   Tabled: 'tabled',
 };
 
@@ -69,13 +88,26 @@ function indexEntriesByItem(
   return byItem;
 }
 
-function classify(item: Item, hasPriorEntries: boolean): AgendaSection | null {
-  if (item.status === 'Closed' || item.status === 'Declined') return null;
-  if (item.status === 'Tabled' || item.onHoldReason) return 'Tabled';
-  if (item.defaultSection !== 'Auto') {
-    return item.defaultSection;
-  }
+/**
+ * Which section a project belongs in, given its resolved status.
+ *
+ * `OtherBusiness` is checked before `Standing` because it is not a
+ * section preference — it says "this is not one of the three numbered
+ * sections at all", which is true of Open Discussion whether or not it
+ * recurs. Everywhere else, standing wins: a standing project is a
+ * recurring report, not a piece of work with an end state, so it
+ * belongs under Updates even if someone pinned it elsewhere.
+ */
+function classify(
+  item: Item,
+  status: ItemStatus,
+  hasPriorEntries: boolean,
+): AgendaSection | null {
+  if (status === 'Closed' || status === 'Declined') return null;
+  if (status === 'Tabled' || item.onHoldReason) return 'Tabled';
+  if (item.defaultSection === 'OtherBusiness') return 'OtherBusiness';
   if (item.standing) return 'Update';
+  if (item.defaultSection !== 'Auto') return item.defaultSection;
   if (!hasPriorEntries) return 'NewBusiness';
   return 'OldBusiness';
 }
@@ -104,22 +136,27 @@ export function generateAgenda(
     oldBusiness: [],
     newBusiness: [],
     tabled: [],
+    otherBusiness: [],
     deferred: [],
   };
 
   for (const item of items) {
     const stats = priorByItem.get(item.id);
     const hasPriorEntries = !!stats && stats.count > 0;
-    const section = classify(item, hasPriorEntries);
+    const status = resolveItemStatus(item, entries).status;
+    const section = classify(item, status, hasPriorEntries);
     if (!section) continue;
 
+    const summary = selectStatusSummary(item, entries, targetDate);
     const entry: AgendaEntry = {
       item,
       section,
+      status,
       sortOrder: stats?.mostRecentBefore?.sortOrder ?? Number.POSITIVE_INFINITY,
       lastDiscussedDate: stats?.mostRecentBefore?.meetingDate,
       priorEntryCount: stats?.count ?? 0,
-      summary: selectStatusSummary(item, entries, targetDate),
+      summary,
+      stale: isSummaryStale(summary, targetDate),
     };
 
     if (item.deferredUntil && item.deferredUntil > targetDate) {
@@ -133,6 +170,7 @@ export function generateAgenda(
   agenda.oldBusiness.sort(compareEntries);
   agenda.newBusiness.sort(compareEntries);
   agenda.tabled.sort(compareEntries);
+  agenda.otherBusiness.sort(compareEntries);
   agenda.deferred.sort(compareEntries);
 
   return agenda;

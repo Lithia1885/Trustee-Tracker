@@ -521,6 +521,12 @@ code, kbd, samp, pre { font-family: var(--font-mono); }
   color: var(--ink-3);
   white-space: nowrap;
 }
+/* A project nobody has reported on in months — the row still reads
+   normally, the age just stops being invisible. */
+.agenda-row .meta-text.stale {
+  color: var(--amber);
+  font-weight: 600;
+}
 .agenda-row .row-onhold {
   font-size: 11.5px;
   color: var(--amber);

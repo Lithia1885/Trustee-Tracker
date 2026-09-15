@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf';
 import type { Agenda, AgendaEntry } from './generator';
 import { thirdTuesdayAfter, toIsoDate } from './nextMeeting';
+import { stripMarkdown, summarizeNarrative } from '../domain/entries';
+import { isDueHintPastDue } from '../domain/dueHint';
 import type { ActionItem, Item, Meeting } from '../types';
 
 const FONT = 'helvetica'; // Arial-equivalent; built into every PDF reader.
@@ -16,10 +18,20 @@ const DEFAULT_LOCATION = 'Living Faith Class room on 3rd floor';
 
 const UNASSIGNED_HEADING = 'Not assigned to anyone yet';
 
+/**
+ * The agenda body gets a line or two per project — the board works from
+ * paper at the table, and the hand-typed agendas it replaces ran to a
+ * page. The full narrative is not lost: it is reprinted in the
+ * follow-up pages, which are reference, not reading matter.
+ */
+const BODY_SUMMARY = { maxChars: 190, minSentence: 50, maxSentence: 230 };
+
 export interface AgendaPdfInput {
   targetDate: string;
   meeting?: Meeting;
   prevMeeting?: Meeting;
+  /** Every meeting, so the header can fall back to the last known location. */
+  meetings?: Meeting[];
   agenda: Agenda;
   /** All action items; only the open ones reach the appendix. */
   actionItems?: ActionItem[];
@@ -95,7 +107,7 @@ export function generateAgendaPdf(input: AgendaPdfInput): jsPDF {
   // ── Header ───────────────────────────────────────────────────
   w.line('AGENDA', { size: 14, bold: true, gap: 6 });
 
-  const location = meeting?.location?.trim() || DEFAULT_LOCATION;
+  const location = resolveMeetingLocation(targetDate, meeting, input.meetings);
   w.line(`${formatHeaderDate(targetDate)} - ${DEFAULT_TIME} ${location}.`, { gap: PARA_GAP });
 
   w.line('Opening Prayer', { gap: PARA_GAP });
@@ -111,14 +123,13 @@ export function generateAgendaPdf(input: AgendaPdfInput): jsPDF {
   }
 
   // ── Sections ─────────────────────────────────────────────────
-  writeSection(w, 'UPDATES:', agenda.updates);
-  writeSection(w, 'OLD BUSINESS:', agenda.oldBusiness);
-  writeSection(w, 'NEW BUSINESS:', agenda.newBusiness);
+  writeSection(w, targetDate, 'UPDATES:', agenda.updates);
+  writeSection(w, targetDate, 'OLD BUSINESS:', agenda.oldBusiness);
+  writeSection(w, targetDate, 'NEW BUSINESS:', agenda.newBusiness);
   // Tabled deliberately suppressed — the chair's agendas don't list it.
   // It is carried in the follow-up appendix instead.
 
-  w.gap(SECTION_GAP);
-  w.line('OPEN DISCUSSION', { bold: true, gap: PARA_GAP });
+  writeSection(w, targetDate, 'OPEN DISCUSSION', agenda.otherBusiness, { emptyText: null });
 
   const nextLine = meeting?.nextMeetingDate
     ? formatHeaderDate(meeting.nextMeetingDate)
@@ -132,23 +143,72 @@ export function generateAgendaPdf(input: AgendaPdfInput): jsPDF {
   return doc;
 }
 
-function writeSection(w: Writer, heading: string, entries: AgendaEntry[]) {
+function writeSection(
+  w: Writer,
+  targetDate: string,
+  heading: string,
+  entries: AgendaEntry[],
+  opts: { emptyText?: string | null } = {},
+) {
   w.gap(SECTION_GAP);
   w.line(heading, { bold: true, gap: PARA_GAP, keepWith: 14 });
   if (entries.length === 0) {
-    w.line('(none)', { gap: PARA_GAP });
+    const empty = opts.emptyText === undefined ? '(none)' : opts.emptyText;
+    if (empty) w.line(empty, { gap: PARA_GAP });
     return;
   }
   for (const entry of entries) {
-    w.line(composeItemLine(entry), { gap: PARA_GAP });
+    w.line(composeItemLine(entry, targetDate), { gap: PARA_GAP });
   }
 }
 
-function composeItemLine(entry: AgendaEntry): string {
-  const status = entry.summary?.text.trim() ?? '';
-  if (!status) return entry.item.title;
+/**
+ * How old the line is, said in the fewest words that make it obvious.
+ *
+ * A narrative is written in the present tense of the meeting that
+ * produced it, so "Art and Kevin meeting Saturday" reads as this
+ * Saturday four months later. The date alone fixes that for a recent
+ * entry; an old one gets different wording so the eye catches it.
+ */
+export function composeAgeNote(entry: AgendaEntry, targetDate: string): string | undefined {
+  const summary = entry.summary;
+  if (!summary) return undefined;
+  if (summary.source === 'background') return 'not yet discussed';
+  if (!summary.date) return undefined;
+  const when = formatShortDate(summary.date, targetDate);
+  return entry.stale ? `no update since ${when}` : when;
+}
+
+export function composeItemLine(entry: AgendaEntry, targetDate: string): string {
   const title = entry.item.title.replace(/[.:]$/, '');
-  return `${title}. ${stripMarkdown(status)}`;
+  const age = composeAgeNote(entry, targetDate);
+  const head = age ? `${title} (${age})` : title;
+  const status = entry.summary?.text.trim();
+  if (!status) return head;
+  return `${head}. ${summarizeNarrative(status, BODY_SUMMARY)}`;
+}
+
+/**
+ * Where the meeting is actually held.
+ *
+ * The board moved to the Fellowship Hall and stayed there, so the
+ * hardcoded room was wrong on every printout. Prefer what the meeting
+ * being printed records, then the last meeting that recorded one at
+ * all, and only then the configured default.
+ */
+export function resolveMeetingLocation(
+  targetDate: string,
+  meeting?: Meeting,
+  meetings?: readonly Meeting[],
+): string {
+  const booked = meeting?.location?.trim();
+  if (booked) return booked;
+
+  const lastKnown = (meetings ?? [])
+    .filter((m) => !!m.location?.trim() && m.meetingDate <= targetDate)
+    .sort((a, b) => a.meetingDate.localeCompare(b.meetingDate))
+    .pop();
+  return lastKnown?.location?.trim() || DEFAULT_LOCATION;
 }
 
 // ── Follow-up appendix ─────────────────────────────────────────
@@ -198,7 +258,8 @@ export function collectHeldProjects(agenda: Agenda): AgendaEntry[] {
 function writeFollowUp(w: Writer, input: AgendaPdfInput) {
   const groups = groupOpenActionsByOwner(input.actionItems ?? []);
   const held = collectHeldProjects(input.agenda);
-  if (groups.length === 0 && held.length === 0) return;
+  const noted = collectBodyEntries(input.agenda).filter((e) => e.summary?.text.trim());
+  if (groups.length === 0 && held.length === 0 && noted.length === 0) return;
 
   const titleById = new Map<string, string>();
   for (const item of input.items ?? []) titleById.set(item.id, item.title);
@@ -218,9 +279,14 @@ function writeFollowUp(w: Writer, input: AgendaPdfInput) {
         const project = titleById.get(action.itemId);
         const parts = [action.description.trim()];
         if (project) parts.push(project);
-        // Due wording is printed exactly as it was written. It is free
-        // text like "before May 19", so nothing here calls it late.
-        if (action.dueHint?.trim()) parts.push(`due ${action.dueHint.trim()}`);
+        const hint = action.dueHint?.trim();
+        if (hint) {
+          // The wording is printed exactly as it was written. "Past
+          // due" is added only where that wording plainly names a date
+          // and that date has gone by — never for "next meeting".
+          const late = isDueHintPastDue(hint, input.targetDate);
+          parts.push(late ? `due ${hint} — PAST DUE` : `due ${hint}`);
+        }
         w.line(`• ${parts.join(' — ')}`, { size: 10.5, indent: 12, gap: 3 });
       }
       w.gap(6);
@@ -248,16 +314,43 @@ function writeFollowUp(w: Writer, input: AgendaPdfInput) {
       }
       w.gap(6);
     }
+    w.gap(SECTION_GAP - 6);
   }
+
+  writeFullNotes(w, noted, input.targetDate);
 }
 
-function stripMarkdown(s: string): string {
-  return s
-    .replace(/^[\s>*#-]+/gm, '')
-    .replace(/[*_`~]{1,3}/g, '')
-    .replace(/\[(.+?)\]\([^)]+\)/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
+/** Every line of the agenda body, restored to its full narrative. */
+export function collectBodyEntries(agenda: Agenda): AgendaEntry[] {
+  return [
+    ...agenda.updates,
+    ...agenda.oldBusiness,
+    ...agenda.newBusiness,
+    ...agenda.otherBusiness,
+  ];
+}
+
+/**
+ * The agenda body is trimmed to a line or two so it can be worked from
+ * at the table. Nothing is lost — the untrimmed narrative is reprinted
+ * here, where there is room for it.
+ */
+function writeFullNotes(w: Writer, entries: AgendaEntry[], targetDate: string) {
+  if (entries.length === 0) return;
+
+  w.line('FULL NOTES', { bold: true, gap: 4, keepWith: 28 });
+  w.line('The complete narrative behind each line of the agenda, in agenda order.', {
+    size: 10,
+    gap: PARA_GAP,
+  });
+
+  for (const entry of entries) {
+    const age = composeAgeNote(entry, targetDate);
+    const heading = age ? `${entry.item.title} — ${age}` : entry.item.title;
+    w.line(heading, { size: 11, bold: true, gap: 2, keepWith: 14 });
+    w.line(stripMarkdown(entry.summary!.text), { size: 10.5, indent: 12, gap: 2 });
+    w.gap(6);
+  }
 }
 
 function parseIso(iso: string): Date {
@@ -270,6 +363,20 @@ function formatHeaderDate(iso: string): string {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
+  });
+}
+
+/**
+ * "Aug 18", or "Aug 18, 2025" when the year differs from the meeting's
+ * — short enough to sit inside a line, never ambiguous about which year.
+ */
+function formatShortDate(iso: string, relativeTo: string): string {
+  const d = parseIso(iso);
+  const sameYear = iso.slice(0, 4) === relativeTo.slice(0, 4);
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    ...(sameYear ? {} : { year: 'numeric' }),
   });
 }
 

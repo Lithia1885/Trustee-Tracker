@@ -5,6 +5,7 @@ import {
   type AgendaEntry,
 } from '../agenda/generator';
 import { nextThirdTuesday, toIsoDate } from '../agenda/nextMeeting';
+import { summarizeNarrative } from '../domain/entries';
 import {
   SECTION_COLOR,
   SECTION_LABEL,
@@ -15,6 +16,7 @@ import {
   monthYear,
   parseAssignees,
   shortDate,
+  staleSinceLabel,
   tagDisplay,
   tagPillStyle,
 } from '../design/tokens';
@@ -29,10 +31,21 @@ const FILTERS: Array<{ key: FilterKey; label: string }> = [
   { key: 'Update', label: 'Updates' },
   { key: 'OldBusiness', label: 'Old' },
   { key: 'NewBusiness', label: 'New' },
+  { key: 'OtherBusiness', label: 'Open' },
   { key: 'Tabled', label: 'Tabled' },
 ];
 
-const SECTIONS: AgendaSection[] = ['Update', 'OldBusiness', 'NewBusiness', 'Tabled'];
+const SECTIONS: AgendaSection[] = [
+  'Update',
+  'OldBusiness',
+  'NewBusiness',
+  'OtherBusiness',
+  'Tabled',
+];
+
+// The four the stat strip counts; Open Discussion is a fixed slot, not
+// a workload to measure.
+const COUNTED_SECTIONS: AgendaSection[] = ['Update', 'OldBusiness', 'NewBusiness', 'Tabled'];
 
 function entriesFor(agenda: Agenda, section: AgendaSection): AgendaEntry[] {
   switch (section) {
@@ -42,6 +55,8 @@ function entriesFor(agenda: Agenda, section: AgendaSection): AgendaEntry[] {
       return agenda.oldBusiness;
     case 'NewBusiness':
       return agenda.newBusiness;
+    case 'OtherBusiness':
+      return agenda.otherBusiness;
     case 'Tabled':
       return agenda.tabled;
   }
@@ -74,11 +89,12 @@ export function AgendaView() {
     return m;
   }, [actionItems]);
 
-  const counts = useMemo(
+  const counts = useMemo<Record<AgendaSection, number>>(
     () => ({
       Update: agenda.updates.length,
       OldBusiness: agenda.oldBusiness.length,
       NewBusiness: agenda.newBusiness.length,
+      OtherBusiness: agenda.otherBusiness.length,
       Tabled: agenda.tabled.length,
     }),
     [agenda],
@@ -132,7 +148,7 @@ export function AgendaView() {
       </div>
 
       <div className="stat-strip">
-        {SECTIONS.map((section) => (
+        {COUNTED_SECTIONS.map((section) => (
           <StatChip
             key={section}
             label={SECTION_LABEL[section]}
@@ -163,6 +179,7 @@ export function AgendaView() {
         <Section
           key={section}
           section={section}
+          targetDate={targetDate}
           entries={entriesFor(agenda, section)}
           openActionsByItem={openActionsByItem}
         />
@@ -232,10 +249,12 @@ function StatChip({
 
 function Section({
   section,
+  targetDate,
   entries,
   openActionsByItem,
 }: {
   section: AgendaSection;
+  targetDate: string;
   entries: AgendaEntry[];
   openActionsByItem: Map<string, ActionItem[]>;
 }) {
@@ -256,6 +275,7 @@ function Section({
             {section === 'Update' && 'No standing updates.'}
             {section === 'OldBusiness' && 'Nothing carried forward.'}
             {section === 'NewBusiness' && 'No new items raised.'}
+            {section === 'OtherBusiness' && 'Nothing standing for open discussion.'}
             {section === 'Tabled' && 'No tabled items.'}
           </div>
         ) : (
@@ -263,6 +283,7 @@ function Section({
             <AgendaRow
               key={entry.item.id}
               entry={entry}
+              targetDate={targetDate}
               openActions={openActionsByItem.get(entry.item.id) ?? []}
             />
           ))
@@ -274,9 +295,11 @@ function Section({
 
 function AgendaRow({
   entry,
+  targetDate,
   openActions,
 }: {
   entry: AgendaEntry;
+  targetDate: string;
   openActions: ActionItem[];
 }) {
   const { item, lastDiscussedDate } = entry;
@@ -285,7 +308,7 @@ function AgendaRow({
   const tagOverflow = item.tags.length - tags.length;
   // Same source of truth as the printed packet: the latest update the
   // board could have had by this date, else the background notes.
-  const preview = entry.summary ? snippet(entry.summary.text) : undefined;
+  const preview = entry.summary ? summarizeNarrative(entry.summary.text) : undefined;
   const reportedSince =
     entry.summary?.source === 'update' &&
     entry.summary.date &&
@@ -338,14 +361,16 @@ function AgendaRow({
             </span>
           )}
           <span className="spacer" />
-          <span className="meta-text">
-            {reportedSince
-              ? `update ${shortDate(reportedSince)}`
-              : lastDiscussedDate
-                ? monthYear(lastDiscussedDate)
-                : item.firstRaisedDate
-                  ? `raised ${monthYear(item.firstRaisedDate)}`
-                  : ''}
+          <span className={`meta-text ${entry.stale ? 'stale' : ''}`}>
+            {entry.stale && entry.summary?.date
+              ? `no update since ${staleSinceLabel(entry.summary.date, targetDate)}`
+              : reportedSince
+                ? `update ${shortDate(reportedSince)}`
+                : lastDiscussedDate
+                  ? monthYear(lastDiscussedDate)
+                  : item.firstRaisedDate
+                    ? `raised ${monthYear(item.firstRaisedDate)}`
+                    : ''}
             {openActions.length > 0 && <> · {openActions.length}↻</>}
           </span>
         </div>
@@ -372,37 +397,11 @@ async function exportAgendaPdf(input: {
     targetDate,
     meeting,
     prevMeeting,
+    meetings,
     agenda,
     items,
     actionItems,
     includeFollowUp,
   });
   doc.save(`Trustees-Agenda-${targetDate}.pdf`);
-}
-
-// First sentence (or first paragraph) of markdown narrative, with
-// markdown formatting stripped for compact row display.
-function snippet(markdown: string): string {
-  const firstPara = markdown.split(/\n\s*\n/)[0] ?? '';
-  const stripped = firstPara
-    // Strip leading list / blockquote / heading markers at line starts
-    .replace(/^[\s>*#-]+/gm, '')
-    // Strip emphasis/code/strikethrough markers (not hyphens, which
-    // appear in plain prose like "5-8 PM" or "6-7 panels")
-    .replace(/[*_`~]{1,3}/g, '')
-    // Render [text](url) as just text
-    .replace(/\[(.+?)\]\([^)]+\)/g, '$1')
-    .replace(/\s+/g, ' ')
-    .trim();
-  // Pick a sentence break only if it's late enough to be informative
-  // and we're truncating anyway. Parenthetical periods inside the
-  // first ~60 chars are usually noise like "(~$1,500/month)."
-  if (stripped.length > 140) {
-    const periodIdx = stripped.slice(40).search(/[.!?](\s|$)/);
-    if (periodIdx >= 0 && periodIdx + 40 < 200) {
-      return stripped.slice(0, periodIdx + 40 + 1);
-    }
-    return stripped.slice(0, 137).trimEnd() + '…';
-  }
-  return stripped;
 }

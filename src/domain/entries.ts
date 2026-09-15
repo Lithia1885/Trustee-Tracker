@@ -128,3 +128,85 @@ export function selectStatusSummary(
   const notes = item.notes?.trim();
   return notes ? { text: notes, source: 'background' } : undefined;
 }
+
+/**
+ * Whole calendar months between two dates, counting month boundaries
+ * rather than elapsed days. The board meets monthly, so this reads as
+ * "how many meeting cycles ago" — Apr to Sep is five, whatever the days.
+ */
+export function monthsBetween(fromIso: string, toIso: string): number {
+  const from = { y: Number(fromIso.slice(0, 4)), m: Number(fromIso.slice(5, 7)) };
+  const to = { y: Number(toIso.slice(0, 4)), m: Number(toIso.slice(5, 7)) };
+  if (!from.y || !from.m || !to.y || !to.m) return 0;
+  return (to.y - from.y) * 12 + (to.m - from.m);
+}
+
+/** A summary older than this many monthly cycles reads as out of date. */
+export const STALE_AFTER_CYCLES = 2;
+
+/**
+ * Has this summary been overtaken by time?
+ *
+ * Narratives are written in the present tense of the meeting that
+ * produced them. "Art and Kevin meeting Saturday" was true in April and
+ * says nothing useful in September, so the reader has to be able to see
+ * how old it is.
+ */
+export function isSummaryStale(
+  summary: StatusSummary | undefined,
+  targetDate: string,
+  cycles: number = STALE_AFTER_CYCLES,
+): boolean {
+  if (!summary?.date) return false;
+  return monthsBetween(summary.date, targetDate) > cycles;
+}
+
+export interface SummarizeOptions {
+  /** Longest rendering before the text is cut. */
+  maxChars?: number;
+  /** Don't end on a sentence earlier than this — too short to inform. */
+  minSentence?: number;
+  /** Don't hunt for a sentence break beyond this. */
+  maxSentence?: number;
+}
+
+/**
+ * A narrative shortened for a place that has room for a line or two:
+ * the agenda row on screen, and the agenda body on paper.
+ *
+ * Purely a rendering concern — the stored narrative is untouched, and
+ * the printed follow-up pages carry it in full.
+ */
+export function summarizeNarrative(markdown: string, options: SummarizeOptions = {}): string {
+  const { maxChars = 140, minSentence = 40, maxSentence = 200 } = options;
+  const firstPara = markdown.split(/\n\s*\n/)[0] ?? '';
+  const stripped = stripMarkdown(firstPara);
+  if (stripped.length <= maxChars) return stripped;
+
+  // Prefer a real sentence break, but only one late enough to carry
+  // some information and early enough to still be a summary.
+  const breakIdx = stripped.slice(minSentence).search(/[.!?](\s|$)/);
+  if (breakIdx >= 0 && breakIdx + minSentence < maxSentence) {
+    return stripped.slice(0, breakIdx + minSentence + 1);
+  }
+  // Cut on a word, never through one: "Platinum Pr…" reads as a bug.
+  const cut = stripped.slice(0, maxChars - 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  const body = lastSpace > maxChars / 2 ? cut.slice(0, lastSpace) : cut;
+  return body.replace(/[\s,;:.]+$/, '') + '…';
+}
+
+/** Markdown reduced to the plain sentence underneath it. */
+export function stripMarkdown(s: string): string {
+  return (
+    s
+      // Leading list / blockquote / heading markers at line starts.
+      .replace(/^[\s>*#-]+/gm, '')
+      // Emphasis, code and strikethrough — not hyphens, which appear in
+      // plain prose like "5-8 PM" or "6-7 panels".
+      .replace(/[*_`~]{1,3}/g, '')
+      .replace(/\[(.+?)\]\([^)]+\)/g, '$1')
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
+}

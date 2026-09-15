@@ -79,7 +79,7 @@ Six lists. Provisioned by hand in the SharePoint admin UI. The app reads/writes 
 | Title | Single line of text | Yes | Canonical item name. |
 | Status | Choice | Yes | `Open`, `Tabled`, `Closed`, `Declined`. Default: `Open`. |
 | Standing | Yes/No | Yes | Default: `No`. |
-| DefaultSection | Choice | Yes | `Auto`, `Update`, `OldBusiness`, `NewBusiness`. Default: `Auto`. |
+| DefaultSection | Choice | Yes | `Auto`, `Update`, `OldBusiness`, `NewBusiness`, `OtherBusiness`. Default: `Auto`. `OtherBusiness` parks the item in the Open Discussion slot at the end of the agenda. See [`docs/sharepoint-columns.md`](docs/sharepoint-columns.md). |
 | Tags | Choice (multi-select) | No | `Building`, `Finance`, `Grounds`, `Security`, `HVAC`, `Accessibility`, `Furniture`, `FacilityUse`, `Budget`, `Vendors`, `Personnel`, `Technology`, `SafetySanctuary`. |
 | AssignedTo | Single line of text | No | Free text. May be names or group labels like "Men's Group". |
 | FirstRaisedDate | Date (date-only) | No | |
@@ -166,14 +166,19 @@ The agenda generator is a pure function. Given Items and MeetingEntries, it prod
 
 **What counts as a prior discussion** (`isPriorMeetingOutcome`): only `InMeeting` entries at meetings before the target date. A project first reported by email in September is still New Business in September.
 
-Classification logic for each open item:
+Status is read through `resolveItemStatus`, not off the cached
+`Item.Status` column, so a drifted cache can never put the agenda and
+the reconciler in disagreement.
 
-1. If `Status` is Closed or Declined → **skip** (do not show on agenda).
-2. If `DeferredUntil` is set and is after the target meeting date → **skip**.
-3. If `Status` is Tabled OR `OnHoldReason` is populated → **Tabled** subsection.
-4. If `DefaultSection` is explicitly set (not Auto) → use that section.
-5. If `DefaultSection` is Auto:
-   - If `Standing` is true → **Updates**
+Classification logic for each open item, in this order:
+
+1. If the resolved status is Closed or Declined → **skip** (do not show on agenda).
+2. If `DeferredUntil` is set and is after the target meeting date → **skip** (returned in `agenda.deferred`).
+3. If the resolved status is Tabled OR `OnHoldReason` is populated → **Tabled** subsection.
+4. If `DefaultSection` is `OtherBusiness` → **Open Discussion**, the slot at the end of the agenda. This is checked before Standing because it is not a section preference: it says the item is not one of the three numbered sections at all.
+5. If `Standing` is true → **Updates**. A standing item is a recurring report, not a piece of work with an end state, so it goes to Updates even when someone has pinned it elsewhere.
+6. If `DefaultSection` is otherwise explicitly set (not Auto) → use that section.
+7. If `DefaultSection` is Auto:
    - If the item has no prior MeetingEntries → **New Business**
    - Otherwise → **Old Business**
 
@@ -181,7 +186,18 @@ Within each section, sort by the `SortOrder` from the item's most recent prior m
 
 Items suppressed by `DeferredUntil` are returned in `agenda.deferred` rather than dropped, so the printed follow-up pages can list them with their reason and revisit date.
 
-Each agenda entry also carries a `summary`: the single status line for that project, selected by `selectStatusSummary` — the most recent update the board could have had by the target date, falling back to `Item.Notes`. **The agenda screen and the PDF both read this**; neither picks its own.
+Each agenda entry also carries:
+
+- `summary` — the single status line for that project, selected by `selectStatusSummary`: the most recent update the board could have had by the target date, falling back to `Item.Notes`. **The agenda screen and the PDF both read this**; neither picks its own.
+- `status` — the resolved status that placed it in its section.
+- `stale` — true when the summary predates the meeting by more than two monthly cycles. A narrative is written in the present tense of the meeting that produced it, so the reader has to be able to see how old it is.
+
+## Printed agenda rules
+
+- **The body is trimmed, the follow-up is not.** Narratives are cut to a first-sentence summary (`summarizeNarrative`) so the board can work from paper at the table; the untrimmed text is reprinted under FULL NOTES in the follow-up pages. Trimming is render-time only — nothing stored changes.
+- **Every line carries the date of the entry behind it.** `(Aug 18)` for a recent one, `(no update since Apr 21)` when it is stale, `(not yet discussed)` when the text came from background notes.
+- **The meeting room is derived, never assumed.** `resolveMeetingLocation` takes the location off the meeting being printed, else the most recent meeting that recorded one, else the configured default.
+- **A deadline is only called late when it is a date.** `DueHint` is free text; `parseDueDate` marks `— PAST DUE` only where the wording plainly contains a date that has gone by. "next meeting" is never flagged.
 
 ## Patterns to Avoid
 
@@ -301,12 +317,14 @@ expressions:
 | Skip | `equals(item()?['Status'], 'Closed') or equals(item()?['Status'], 'Declined')` — filter out before sectioning |
 | Skip | `and(not(empty(item()?['DeferredUntil'])), greater(item()?['DeferredUntil'], targetDate))` |
 | Tabled | `or(equals(item()?['Status'], 'Tabled'), not(empty(item()?['OnHoldReason'])))` |
-| Updates | `equals(item()?['Standing'], true)` (after Tabled removed) |
+| Open Discussion | `equals(item()?['DefaultSection'], 'OtherBusiness')` — remove before sectioning, render at the end |
+| Updates | `equals(item()?['Standing'], true)` (after Tabled and Open Discussion removed) |
 | Old | items with at least one `InMeeting` MeetingEntry where MeetingDate < targetDate |
 | New | items with zero prior `InMeeting` MeetingEntries |
 
-`DefaultSection != 'Auto'` (manual override) should win over Standing /
-prior-entries — apply it before the Standing check.
+Order matters: Open Discussion first, then Standing, then a
+`DefaultSection` other than `Auto`, then the prior-entries test. A
+standing item goes to Updates even when pinned elsewhere.
 
 The narrative the flow prints for an item is the same selection the app
 makes: the most recent entry visible to that agenda, else `Item.Notes`.

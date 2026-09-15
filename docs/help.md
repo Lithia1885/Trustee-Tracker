@@ -50,20 +50,26 @@ The app has five main screens. On desktop they are tabs down the left side. On p
 
 1. Open the app — you land on **Agenda**.
 2. The date picker at the top defaults to the next third Tuesday. Change it if you want a different meeting.
-3. The agenda is split into **Updates**, **Old Business**, **New Business**, and **Tabled**. Tap a section tab to filter, or stay on **All**.
+3. The agenda is split into **Updates**, **Old Business**, **New Business**, **Open Discussion**, and **Tabled**. Tap a section tab to filter, or stay on **All**.
 4. Each row shows the item title, a short note, who's assigned, tags, when it was last discussed, and how many open action items it has.
+5. If nobody has reported on something for more than two meetings, the row says **no update since** that month, in amber. The note you're reading is that old — treat it accordingly.
 5. Tap any row to open the item's full history.
 
 ### Print or share the agenda
 
 On the Agenda screen, tap **Print agenda**. It downloads a PDF named with the meeting date. You can email it or print it. Nobody needs an account to read it.
 
+The agenda itself is deliberately short: each project gets a line or two, so you can work from it at the table. Every line is stamped with the date of the note behind it — `(Aug 18)` for something reported last month, `(no update since Apr 21)` when nothing has come in for a while, `(not yet discussed)` when the text is background rather than a meeting note.
+
+The meeting room in the header comes from the meeting record. Set **Location** on the meeting and the printout follows it; if that meeting has no location, it uses the last one the board did record.
+
 Next to the date picker there's a checkbox, **Add follow-up pages to the printout**, on by default. It adds a clearly labelled **Follow-up** section after the agenda:
 
 - Every open action item, grouped by who owes it, with the project and the due wording exactly as it was typed. Work nobody has taken is listed on its own under "Not assigned to anyone yet".
 - Every project that's waiting — tabled, on hold, or deferred — with its reason and revisit date.
+- **Full notes** — the complete narrative behind every line of the agenda, untrimmed, in agenda order. Nothing is lost by the short agenda; it's all here.
 
-Done and dropped actions never appear there. Nothing gets labelled late; the due wording is free text and the app doesn't second-guess it. Untick the box if you want the agenda alone, the way the chair has always typed it.
+Done and dropped actions never appear. A due date is marked **PAST DUE** only when the wording actually contains a date and that date has gone by — "before 2026-09-01" gets flagged on a 15 September agenda, "next meeting" never does. Untick the box if you want the agenda alone, the way the chair has always typed it.
 
 ### Add a brand-new item to the registry
 
@@ -71,7 +77,9 @@ Done and dropped actions never appear there. Nothing gets labelled late; the due
 2. Fill in the title — that's the only required field. Everything else is optional.
 3. Pick tags, an assignee, a first-raised date, etc.
 4. **Standing item?** Check the box if this is something that comes up every meeting (like CE Mitchell Tutoring). Standing items always appear under Updates.
-5. **Default section** is usually **Auto** — the app picks the right section based on the item's history. Only override it if you really need to force where it appears.
+5. **Default section** is usually **Auto** — the app picks the right section based on the item's history. Override it only to force where something appears. **Open discussion** parks an item in the slot at the end of the agenda instead of one of the three numbered sections.
+
+Note that **Standing** wins over Default section: a standing item always goes to Updates, because it's a recurring report rather than a project with an end. The one exception is Open discussion, which stays at the end.
 6. Hit **Create**. You land on the item's detail page.
 
 ### Record what happened at a meeting
@@ -173,7 +181,8 @@ Filters stack. Clear them with the **Clear filters** button.
 - **Status follows the history, in date order.** An item's status comes from the most recent status change in its history — by *when it happened*, not when you typed it. So you can backfill June in September without undoing what July recorded. If the stored status disagrees, you'll see a banner naming both with a one-click fix. The project page also shows **Status set by**, so you can see which update decided it.
 - **Deleting the last status change puts the status back.** If you clear or delete the only entry that set a status, the item goes back to where it stood before the app started tracking it — it does not reset to Open. For old records that were never typed up, the stored status simply stands; the page says so.
 - **Sort order in a section** comes from the previous meeting's discussion order. If you want to reorder, edit a meeting entry's **Sort order** field (smaller numbers go first; the default is 100, so use 10 / 20 / 30 to put something at the top).
-- **Standing items** always go under Updates regardless of history. Use it for things like CE Mitchell Tutoring or the Harness Capital Campaign that get a "no big changes" update every month.
+- **Standing items** always go under Updates, regardless of history or of what Default section says. Use it for things like CE Mitchell Tutoring, the capital campaign, or the treasury figures — anything that gets a status report every month rather than finishing.
+- **The agenda is trimmed on purpose.** A long narrative shows as its first sentence or so on the agenda; the whole thing is reprinted under **Full notes** in the follow-up pages. Nothing you typed is shortened or changed in the record — only what's printed on that page.
 - **The next-third-Tuesday default** assumes regular meetings. If you're working on a special meeting, just change the date.
 - **Mobile works.** The whole app is designed phone-first. You can record a meeting from your phone during the meeting if that's easier than a laptop.
 - **Search the Items registry** to find anything by name. Filters for status and tags stack on top of the search.
@@ -186,7 +195,8 @@ Filters stack. Clear them with the **Clear filters** button.
 ## What to do if something looks wrong
 
 - **The agenda is missing an item I expected.** Check: is it Closed or Declined? Is **Deferred until** set to a future date? Either of those hides it. Open the item and check.
-- **An item is in the wrong section.** Either change its **Default section** (force it), or just leave it and the next meeting entry will put it where you want.
+- **An item is in the wrong section.** If it's a recurring report showing under Old Business, tick **Standing** — that alone moves it to Updates. Otherwise change its **Default section**, or leave it and the next meeting entry will put it where you want.
+- **A note on the agenda is out of date.** The agenda reprints the most recent thing recorded, which is the right behaviour — the date next to the title tells you how old that is. Add an update to replace it.
 - **I made a typo in a meeting entry.** Open the meeting, find the entry, tap **Edit entry**. Same for decisions and action items.
 - **I want to delete a meeting entry.** Open the meeting, edit the entry, scroll to **Delete entry**. Confirm. The linked actions and decisions stay but unlink — usually fine, but be aware.
 - **I'm getting an error / blank screen.** Try the **Try again** button. If that doesn't work, refresh the page. If that still doesn't work, tell Bart and include what you were doing.
@@ -211,5 +221,6 @@ The app tells you exactly what happened to the record, because the right thing t
 - **Action item** — something assigned to someone with a deadline. Linked to an entry.
 - **Standing item** — something that always appears under Updates (recurring operational topic).
 - **Tabled** — paused. Either soft (on-hold reason) or hard (deferred until a date).
+- **Open discussion** — the standing slot at the end of the agenda, for business that isn't one of the three numbered sections.
 - **Drift** — when the item's stored status disagrees with what the history says.
 - **Pre-meeting update** — news recorded between meetings and carried onto the next agenda, as opposed to what the board decided at a meeting.
