@@ -1,35 +1,21 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { registerSW } from 'virtual:pwa-register';
 import { AppShell } from './components/AppShell';
+import { UpdateBar } from './components/UpdateBar';
+import { registerServiceWorker } from './pwa/registerSW';
 import './styles.css';
+
+// Before the UI mounts, and outside the auth gate on purpose: a copy
+// sitting on the sign-in screen is the one most likely to be stale, and
+// it has to be able to hear about a new build too.
+registerServiceWorker();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root');
 
 createRoot(root).render(
   <StrictMode>
+    <UpdateBar />
     <AppShell />
   </StrictMode>,
 );
-
-// Service worker: check for updates on every launch and apply
-// immediately. Avoids the "delete and reinstall" routine — when the
-// user opens the PWA after a deploy, the new build takes over after a
-// silent reload.
-const updateSW = registerSW({
-  immediate: true,
-  onNeedRefresh() {
-    updateSW(true);
-  },
-});
-
-if ('serviceWorker' in navigator) {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      navigator.serviceWorker.getRegistration().then((r) => {
-        void r?.update();
-      });
-    }
-  });
-}

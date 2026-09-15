@@ -1,61 +1,15 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { VitePWA } from 'vite-plugin-pwa';
 
+// No PWA plugin. The service worker is written by hand in src/sw/sw.js
+// and stamped into dist by scripts/stampServiceWorker.mjs after the
+// build — see docs/updates.md. The generated worker this replaces
+// served index.html from its precache and reloaded the page the moment
+// a new build landed, which are the two behaviours the update flow
+// exists to prevent.
 export default defineConfig({
-  plugins: [
-    react(),
-    VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: false,
-      includeAssets: [
-        'icons/apple-touch-icon.png',
-        'icons/icon.svg',
-        'brand/lsmc-logo-ink.svg',
-        'preview.html',
-        'prototypes/*.jsx',
-      ],
-      manifest: {
-        name: 'Trustee Tracker',
-        short_name: 'Trustee Tracker',
-        description: 'Lithia Springs Methodist Trustee Tracker',
-        theme_color: '#0b3f3c',
-        background_color: '#faf9f6',
-        display: 'standalone',
-        orientation: 'portrait',
-        start_url: '/',
-        scope: '/',
-        icons: [
-          { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
-          {
-            src: '/icons/icon-512-maskable.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable',
-          },
-        ],
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
-        navigateFallback: 'index.html',
-        navigateFallbackDenylist: [
-          /^\/preview\.html$/,
-          /^\/prototypes\//,
-          /^\/icons\//,
-        ],
-        runtimeCaching: [
-          // Microsoft Graph / login must always hit the network — never
-          // serve stale list data or stale tokens from the SW cache.
-          {
-            urlPattern: /^https:\/\/(graph\.microsoft\.com|login\.microsoftonline\.com)/,
-            handler: 'NetworkOnly',
-          },
-        ],
-      },
-    }),
-  ],
+  plugins: [react()],
   server: { port: 5173 },
   test: {
     globals: true,

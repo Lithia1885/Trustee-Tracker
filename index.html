@@ -11,6 +11,7 @@
     <meta name="apple-mobile-web-app-title" content="Trustee Tracker" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="icon" type="image/svg+xml" href="/icons/icon.svg" />
+    <link rel="manifest" href="/manifest.webmanifest" />
 
     <!-- The church's own faces, served from this origin. See docs/brand.md. -->
     <link
@@ -31,5 +32,36 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!--
+      Last-ditch fuse for the one failure the app cannot report on,
+      because the app is what failed: the stylesheet did not load and
+      the page is sitting there unstyled. An installed copy will happily
+      resume that page for days. Reload exactly once, then stop, so a
+      genuinely broken deploy cannot put the app in a loop.
+    -->
+    <script>
+      (function () {
+        var KEY = 'tt-stylesheet-reload';
+        function onLoaded() {
+          try { sessionStorage.removeItem(KEY); } catch (e) {}
+        }
+        function onFailed(event) {
+          var link = event.target;
+          if (!link || link.tagName !== 'LINK' || link.rel !== 'stylesheet') return;
+          // Same-origin only: a third-party sheet failing is not our bug.
+          try {
+            if (new URL(link.href, location.href).origin !== location.origin) return;
+          } catch (e) { return; }
+          try {
+            if (sessionStorage.getItem(KEY)) return;
+            sessionStorage.setItem(KEY, '1');
+          } catch (e) { return; }
+          location.reload();
+        }
+        window.addEventListener('error', onFailed, true);
+        window.addEventListener('load', onLoaded);
+      })();
+    </script>
   </body>
 </html>

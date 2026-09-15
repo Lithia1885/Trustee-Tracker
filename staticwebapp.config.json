@@ -5,11 +5,11 @@
       "/assets/*",
       "/prototypes/*",
       "/icons/*",
+      "/fonts/*",
+      "/brand/*",
       "/preview.html",
       "/manifest.webmanifest",
       "/sw.js",
-      "/registerSW.js",
-      "/workbox-*.js",
       "/*.{css,js,jsx,svg,png,ico,jpg,webp,woff,woff2,webmanifest}"
     ]
   },
@@ -21,11 +21,27 @@
   "routes": [
     {
       "route": "/sw.js",
-      "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" }
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      }
+    },
+    {
+      "route": "/index.html",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      }
     },
     {
       "route": "/manifest.webmanifest",
-      "headers": { "Cache-Control": "no-cache, no-store, must-revalidate" }
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      }
+    },
+    {
+      "route": "/assets/*",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
     }
   ],
   "globalHeaders": {

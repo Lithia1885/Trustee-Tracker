@@ -19,6 +19,12 @@ Layout spec: [`docs/design.md`](docs/design.md). Mobile-first
 All component colors and radii derive from tokens — never hard-code per
 component. Where the two documents disagree, `brand.md` wins.
 
+How an installed copy keeps itself current — the hand-written service
+worker, the derived build id, the caching policy and the one persistent
+"Reload now" offer — is [`docs/updates.md`](docs/updates.md). The two
+rules that matter: HTML is never served from cache while the network
+works, and nothing reloads a running page without asking.
+
 The printed packet (`src/agenda/pdf.ts`) keeps Helvetica and its own
 layout. Application styling never changes an export. jsPDF writes an
 incomplete font dictionary for the built-in fonts — a character range
@@ -216,6 +222,9 @@ These are lessons from the prayer-list app that would be wrong here:
 - **Do not use SharePoint rich text fields.** All multi-line text fields are plain text. Narratives use markdown rendered by react-markdown.
 - **Do not report a save as failed when the record may exist.** Re-POSTing after an ambiguous network error is how a board record ends up with the same update twice. Reconcile first.
 - **Do not change the printed packet's typography or layout to match the app's.** Trustees read the paper; it stays familiar.
+- **Do not reload a running page to apply an update.** A trustee writing up a meeting loses it. The worker never calls `skipWaiting()` on install; the page asks. See [`docs/updates.md`](docs/updates.md).
+- **Do not announce an update in anything that disappears on a timer.** A toast that fades after four seconds is how a copy stays a month behind. The offer is a bar that waits.
+- **Do not precache the whole assets directory.** The printing code is ~775 KB that most sessions never open. The precache list is read from the built `index.html`, not globbed.
 
 ## Phased Build Plan
 

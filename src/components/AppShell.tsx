@@ -12,6 +12,7 @@ import {
   meetingsHref,
 } from '../routing/hashRoute';
 import { ActionsDashboard } from './ActionsDashboard';
+import { LazyBoundary } from './LazyBoundary';
 import { AgendaView } from './AgendaView';
 import { DecisionLog } from './DecisionLog';
 import { HelpView } from './HelpView';
@@ -209,26 +210,34 @@ export function AppShell() {
             Try again
           </button>
         </Centered>
-      ) : route.view === 'item' ? (
-        <ItemDetail itemId={route.itemId} />
-      ) : route.view === 'newItem' ? (
-        <ItemForm mode="create" />
-      ) : route.view === 'editItem' ? (
-        <ItemForm mode="edit" itemId={route.itemId} />
-      ) : route.view === 'meetings' ? (
-        <MeetingsList />
-      ) : route.view === 'meeting' ? (
-        <MeetingDetail meetingId={route.meetingId} />
-      ) : route.view === 'actions' ? (
-        <ActionsDashboard />
-      ) : route.view === 'items' ? (
-        <ItemsList />
-      ) : route.view === 'decisions' ? (
-        <DecisionLog />
-      ) : route.view === 'help' ? (
-        <HelpView />
       ) : (
-        <AgendaView />
+        // The floor under the routed view. Nothing here is a lazy
+        // route today, but this is where one would land, and it is
+        // also where a render-time chunk failure ends up instead of
+        // on a blank page.
+        <LazyBoundary key={route.view}>
+          {route.view === 'item' ? (
+            <ItemDetail itemId={route.itemId} />
+          ) : route.view === 'newItem' ? (
+            <ItemForm mode="create" />
+          ) : route.view === 'editItem' ? (
+            <ItemForm mode="edit" itemId={route.itemId} />
+          ) : route.view === 'meetings' ? (
+            <MeetingsList />
+          ) : route.view === 'meeting' ? (
+            <MeetingDetail meetingId={route.meetingId} />
+          ) : route.view === 'actions' ? (
+            <ActionsDashboard />
+          ) : route.view === 'items' ? (
+            <ItemsList />
+          ) : route.view === 'decisions' ? (
+            <DecisionLog />
+          ) : route.view === 'help' ? (
+            <HelpView />
+          ) : (
+            <AgendaView />
+          )}
+        </LazyBoundary>
       )}
       <MobileTabs route={route} />
     </div>

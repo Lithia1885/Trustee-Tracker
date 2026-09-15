@@ -1230,3 +1230,62 @@ fieldset.form-field legend {
   line-height: 1.55;
   margin: 0;
 }
+
+/* ─── Update offer ────────────────────────────────────────────── */
+
+/* A bar, not a toast: it stays until someone decides. Sits above
+   everything and clears the phone's own top inset. */
+.update-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+  background: var(--teal-soft);
+  border-bottom: 1px solid var(--teal-line);
+  color: var(--ink);
+  font-size: 13px;
+}
+.update-bar-text { font-weight: 500; }
+.update-bar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Secondary to a primary that is already on screen — reads as an
+   option, not a second call to action. */
+.btn-quiet {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-quiet:hover { background: var(--surface); border-color: var(--hairline-2); }
+
+/* What a view that failed to load shows instead of nothing. */
+.lazy-fallback {
+  margin: 24px auto;
+  max-width: 34rem;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--hairline-2);
+  border-radius: var(--radius-card);
+}
+.lazy-fallback h2 {
+  font-family: var(--font-serif);
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+.lazy-fallback p { margin: 0 0 14px; color: var(--ink-2); }
+.lazy-fallback-actions { display: flex; gap: 8px; flex-wrap: wrap; }
