@@ -1,8 +1,23 @@
 export type ItemStatus = 'Open' | 'Tabled' | 'Closed' | 'Declined';
 
-export type DefaultSection = 'Auto' | 'Update' | 'OldBusiness' | 'NewBusiness';
+/**
+ * Where a project is pinned on the agenda, or `Auto` to let its history
+ * decide. `OtherBusiness` parks it outside the three numbered sections
+ * — it renders in the Open Discussion slot at the end.
+ */
+export type DefaultSection =
+  | 'Auto'
+  | 'Update'
+  | 'OldBusiness'
+  | 'NewBusiness'
+  | 'OtherBusiness';
 
-export type AgendaSection = 'Update' | 'OldBusiness' | 'NewBusiness' | 'Tabled';
+export type AgendaSection =
+  | 'Update'
+  | 'OldBusiness'
+  | 'NewBusiness'
+  | 'OtherBusiness'
+  | 'Tabled';
 
 export type EntrySection = 'Update' | 'OldBusiness' | 'NewBusiness' | 'OtherBusiness';
 

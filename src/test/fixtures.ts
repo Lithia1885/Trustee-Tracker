@@ -1,4 +1,4 @@
-import type { ActionItem, Item, MeetingEntry } from '../types';
+import type { ActionItem, Item, Meeting, MeetingEntry } from '../types';
 
 export function makeItem(overrides: Partial<Item> & { id: string; title: string }): Item {
   return {
@@ -19,6 +19,16 @@ export function makeEntry(
     section: 'OldBusiness',
     sortOrder: 100,
     kind: 'InMeeting',
+    ...overrides,
+  };
+}
+
+export function makeMeeting(
+  overrides: Partial<Meeting> & { id: string; meetingDate: string },
+): Meeting {
+  return {
+    title: `${overrides.meetingDate} Regular`,
+    meetingType: 'Regular',
     ...overrides,
   };
 }

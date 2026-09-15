@@ -20,6 +20,7 @@ export const SECTION_COLOR: Record<AgendaSection, string> = {
   Update: 'var(--teal)',
   OldBusiness: 'var(--amber)',
   NewBusiness: 'var(--rose)',
+  OtherBusiness: 'var(--green)',
   Tabled: 'var(--ink-3)',
 };
 
@@ -43,6 +44,7 @@ export const SECTION_LABEL: Record<AgendaSection, string> = {
   Update: 'Updates',
   OldBusiness: 'Old business',
   NewBusiness: 'New business',
+  OtherBusiness: 'Open discussion',
   Tabled: 'Tabled',
 };
 
@@ -57,6 +59,7 @@ export const SECTION_SUB: Record<AgendaSection, string> = {
   Update: 'Standing reports',
   OldBusiness: 'Carried forward',
   NewBusiness: 'Raised since last meeting',
+  OtherBusiness: 'Taken at the end',
   Tabled: 'On hold',
 };
 
@@ -127,6 +130,22 @@ export function dayMonth(iso: string | undefined): string {
   if (!iso) return '';
   const d = new Date(iso + 'T00:00:00');
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+}
+
+/**
+ * "April", or "Apr 2025" when the year is not the one being looked at.
+ *
+ * Meeting references elsewhere read "Apr 26" for April 2026, which a
+ * reader can mistake for the 26th. In a sentence like "no update since
+ * …" that misreading matters, so the month is spelled out instead.
+ */
+export function staleSinceLabel(iso: string | undefined, relativeTo: string): string {
+  if (!iso) return '';
+  const d = new Date(iso + 'T00:00:00');
+  const sameYear = iso.slice(0, 4) === relativeTo.slice(0, 4);
+  return sameYear
+    ? d.toLocaleDateString('en-US', { month: 'long' })
+    : d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
 
 export function longDate(iso: string | undefined): string {

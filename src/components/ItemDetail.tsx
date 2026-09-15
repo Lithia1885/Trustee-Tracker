@@ -31,11 +31,14 @@ import { SaveNotice, useSaveSubmit } from './SaveNotice';
 
 const STATUS_OPTIONS: ItemStatus[] = ['Open', 'Tabled', 'Closed', 'Declined'];
 
-function classifyAgendaSection(item: Item): AgendaSection | null {
-  if (item.status === 'Closed' || item.status === 'Declined') return null;
-  if (item.status === 'Tabled' || item.onHoldReason) return 'Tabled';
-  if (item.defaultSection !== 'Auto') return item.defaultSection;
+// Mirrors `classify` in src/agenda/generator.ts, minus the history it
+// has no access to here. Keep the two in step.
+function classifyAgendaSection(item: Item, status: ItemStatus): AgendaSection | null {
+  if (status === 'Closed' || status === 'Declined') return null;
+  if (status === 'Tabled' || item.onHoldReason) return 'Tabled';
+  if (item.defaultSection === 'OtherBusiness') return 'OtherBusiness';
   if (item.standing) return 'Update';
+  if (item.defaultSection !== 'Auto') return item.defaultSection;
   return 'OldBusiness';
 }
 
@@ -107,7 +110,7 @@ export function ItemDetail({ itemId }: ItemDetailProps) {
     );
   }
 
-  const agendaSection = classifyAgendaSection(item);
+  const agendaSection = classifyAgendaSection(item, resolution?.status ?? item.status);
 
   return (
     <main className="page">

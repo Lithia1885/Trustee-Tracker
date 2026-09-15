@@ -39,6 +39,24 @@ between meetings are still recorded and still visible on the project,
 but they print on the agenda **after** their meeting instead of on it —
 the behaviour the app had before this column existed.
 
+## Items → `DefaultSection`, new `OtherBusiness` choice
+
+| | |
+|---|---|
+| Type | Choice — add `OtherBusiness` to the existing list |
+| Required | Yes (the column already exists; only the choice is new) |
+| Internal name | `DefaultSection` |
+
+Parks a project in the Open Discussion slot at the end of the agenda,
+outside Updates / Old / New. Open Discussion itself is the case it
+exists for: standing, recurring, and not one of the numbered sections.
+
+Unlike the columns below, **this one is not optional**. Until the choice
+is added in the list settings, SharePoint rejects any save that sets it,
+and a project already carrying the value reads back as `Auto` — which,
+for a standing item, lands it in Updates. Add the choice before pinning
+anything to it.
+
 ## Items → `BaselineStatus`
 
 | | |

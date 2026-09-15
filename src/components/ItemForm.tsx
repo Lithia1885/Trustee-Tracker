@@ -9,7 +9,21 @@ import {
   type Tag,
 } from '../types';
 
-const DEFAULT_SECTIONS: DefaultSection[] = ['Auto', 'Update', 'OldBusiness', 'NewBusiness'];
+const DEFAULT_SECTIONS: DefaultSection[] = [
+  'Auto',
+  'Update',
+  'OldBusiness',
+  'NewBusiness',
+  'OtherBusiness',
+];
+
+const SECTION_CHOICE_LABEL: Record<DefaultSection, string> = {
+  Auto: 'Auto — let the history decide',
+  Update: 'Updates',
+  OldBusiness: 'Old business',
+  NewBusiness: 'New business',
+  OtherBusiness: 'Open discussion (end of the agenda)',
+};
 
 const EMPTY_DRAFT: ItemDraft = {
   title: '',
@@ -156,10 +170,14 @@ export function ItemForm({ mode, itemId }: ItemFormProps) {
             >
               {DEFAULT_SECTIONS.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {SECTION_CHOICE_LABEL[s]}
                 </option>
               ))}
             </select>
+            <span className="field-hint">
+              Standing items always go to Updates, whatever is picked here —
+              except Open discussion, which stays at the end.
+            </span>
           </label>
 
           <label className="form-field form-checkbox">

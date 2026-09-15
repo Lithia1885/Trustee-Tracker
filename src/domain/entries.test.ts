@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   effectiveDate,
   isPriorMeetingOutcome,
+  isSummaryStale,
   isVisibleOnAgenda,
+  monthsBetween,
   selectStatusSummary,
   sortedChronologically,
+  summarizeNarrative,
 } from './entries';
 import { makeEntry, makeItem } from '../test/fixtures';
 
@@ -177,5 +180,73 @@ describe('selectStatusSummary', () => {
   it('returns nothing when there is neither an update nor background notes', () => {
     const bare = makeItem({ id: 'i2', title: 'Bare project' });
     expect(selectStatusSummary(bare, [], SEPTEMBER)).toBeUndefined();
+  });
+});
+
+describe('monthsBetween', () => {
+  it('counts month boundaries, not elapsed days', () => {
+    expect(monthsBetween('2026-04-21', '2026-09-15')).toBe(5);
+    expect(monthsBetween('2026-08-18', '2026-09-15')).toBe(1);
+    expect(monthsBetween('2026-09-30', '2026-09-01')).toBe(0);
+  });
+
+  it('crosses the year boundary', () => {
+    expect(monthsBetween('2025-11-18', '2026-01-19')).toBe(2);
+  });
+});
+
+describe('isSummaryStale', () => {
+  const summary = (date?: string, source: 'update' | 'background' = 'update') => ({
+    text: 'Art and Kevin meeting Saturday.',
+    source,
+    date,
+  });
+
+  it('flags an April narrative on a September agenda', () => {
+    expect(isSummaryStale(summary('2026-04-21'), '2026-09-15')).toBe(true);
+  });
+
+  it('leaves the last two cycles alone', () => {
+    expect(isSummaryStale(summary('2026-08-18'), '2026-09-15')).toBe(false);
+    expect(isSummaryStale(summary('2026-07-21'), '2026-09-15')).toBe(false);
+  });
+
+  it('flags the third cycle back', () => {
+    expect(isSummaryStale(summary('2026-06-16'), '2026-09-15')).toBe(true);
+  });
+
+  it('says nothing about a summary with no date behind it', () => {
+    expect(isSummaryStale(summary(undefined, 'background'), '2026-09-15')).toBe(false);
+    expect(isSummaryStale(undefined, '2026-09-15')).toBe(false);
+  });
+});
+
+describe('summarizeNarrative', () => {
+  it('leaves a short narrative exactly as written', () => {
+    const short = 'No update in April. Invoice dispute ($7K) remains open.';
+    expect(summarizeNarrative(short)).toBe(short);
+  });
+
+  it('cuts a long narrative at its first real sentence', () => {
+    const long =
+      'Harness acquired by MozartWorks; the original founder repurchased the services division. ' +
+      'Contract, billing and 1 January end date unchanged. Two meetings held, 11 and 17 August, ' +
+      'attended by Scott Bragg, Pastor Long and Bart Arther. The vendor acknowledged that the ' +
+      'engagement had become formulaic and had not delivered on raising funds outside the church.';
+    expect(summarizeNarrative(long, { maxChars: 190, minSentence: 50, maxSentence: 230 })).toBe(
+      'Harness acquired by MozartWorks; the original founder repurchased the services division.',
+    );
+  });
+
+  it('falls back to a clean cut when no sentence ends in range', () => {
+    const runOn = 'word '.repeat(80).trim();
+    const out = summarizeNarrative(runOn, { maxChars: 100 });
+    expect(out.length).toBeLessThanOrEqual(100);
+    expect(out.endsWith('…')).toBe(true);
+  });
+
+  it('reads only the first paragraph, and strips the markdown off it', () => {
+    const md = '**Bold** lead sentence.\n\nA second paragraph nobody needs here.';
+    expect(summarizeNarrative(md)).toBe('Bold lead sentence.');
   });
 });
