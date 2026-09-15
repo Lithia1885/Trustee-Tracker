@@ -250,3 +250,109 @@ describe('summarizeNarrative', () => {
     expect(summarizeNarrative(md)).toBe('Bold lead sentence.');
   });
 });
+
+// The board writes its narratives as a story: why the matter came up,
+// what was said, then what was done about it. Summarising by taking the
+// opening sentence therefore returned the least useful sentence there
+// was — the furniture item opened on why a called meeting was held and
+// closed on the September sale being cancelled.
+describe('summarizeNarrative — finding the outcome', () => {
+  const PAPER = { maxChars: 190, minSentence: 50, maxSentence: 230 };
+
+  const furniture =
+    'Called meeting following the morning service to address disposition of the ' +
+    'children\u2019s wing furniture in light of two requests received since the August meeting. ' +
+    'Motion by Bill Camp, second by Pat Smith to offer the furniture to the first requester ' +
+    'at no charge; carried unanimously. The 18\u201319 September sale was canceled.';
+
+  it('surfaces the decision when the narrative ends on it', () => {
+    expect(summarizeNarrative(furniture, PAPER)).toContain('sale was canceled.');
+  });
+
+  it('keeps the opening in front of it, because a decision has no subject', () => {
+    const out = summarizeNarrative(furniture, PAPER);
+    expect(out.startsWith('Called meeting following the morning service')).toBe(true);
+    expect(out.length).toBeLessThanOrEqual(PAPER.maxChars);
+  });
+
+  it('elides the opening on a word, never on a dangling article', () => {
+    const out = summarizeNarrative(furniture, PAPER);
+    expect(out).not.toMatch(/\b(?:the|a|an|of|to|since|and)\u2026/);
+    expect(out).toContain('\u2026');
+  });
+
+  it('takes the last decision, not the first', () => {
+    // Both sentences are decisions; only the second is still true.
+    const out = summarizeNarrative(furniture, PAPER);
+    expect(out).not.toContain('Motion by Bill Camp');
+  });
+
+  it('drops the opening when there is no room for any of it', () => {
+    // An elided opening that is only a word or two long tells nobody
+    // anything, so at that point the decision goes on alone.
+    const outcome =
+      'The motion to authorize the purchase of one hundred and sixty stacking chairs at a ' +
+      'cost not to exceed eleven thousand eight hundred dollars was approved unanimously.';
+    expect(outcome.length).toBeGreaterThan(PAPER.maxChars - PAPER.minSentence);
+    const out = summarizeNarrative(`The board took this up again at length. ${outcome}`, PAPER);
+    expect(out).toBe(outcome);
+  });
+
+  it('reaches into a later paragraph for a decision', () => {
+    const md =
+      'Quotes on file: Squeaky Clean $749, ANAGO $951.25.\n\n' +
+      'Tabled pending a decision on clean versus replace with hard flooring.';
+    expect(summarizeNarrative(md, PAPER)).toBe(
+      'Quotes on file: Squeaky Clean $749, ANAGO $951.25. ' +
+        'Tabled pending a decision on clean versus replace with hard flooring.',
+    );
+  });
+
+  it('leaves a paragraph that already fits exactly as written', () => {
+    // The decision opens this one, and what follows it is the newer
+    // fact. Finding the decision must not throw the rest away.
+    const md =
+      'Approved unanimously Mar 2026 ($55/month + $375 install, dual-path, 16hr battery). ' +
+      'Contract stalled on vendor side over address correction.';
+    expect(summarizeNarrative(md, PAPER)).toBe(md);
+  });
+
+  it('falls back to the first sentence when nothing was decided', () => {
+    const md =
+      'Water observed under the entry rug despite no rain having fallen for several days. ' +
+      'Possible sources: the hot water heater, the ice maker, or a leak below the floor. ' +
+      'Men\u2019s group to pull the rug back and look this weekend if the weather holds.';
+    expect(summarizeNarrative(md, PAPER)).toBe(
+      'Water observed under the entry rug despite no rain having fallen for several days.',
+    );
+  });
+
+  it('does not read a second floor as a motion being seconded', () => {
+    const md =
+      'Repair abandoned after the third component failed on the second floor of the building. ' +
+      'Replacement runs $800-$1,000 and Art will raise it with the Finance Committee shortly. ' +
+      'Karl has the old cooler in the shed for anyone who wants the parts off it.';
+    expect(md.length).toBeGreaterThan(PAPER.maxChars);
+    expect(summarizeNarrative(md, PAPER)).toBe(
+      'Repair abandoned after the third component failed on the second floor of the building.',
+    );
+  });
+
+  it('does not read carried forward as a motion carrying', () => {
+    const md =
+      'Discussion carried forward to next month because the quotes had not arrived in time. ' +
+      'Bart will chase both vendors before the October meeting and circulate what comes back. ' +
+      'Nobody has heard from the second of the two since the spring.';
+    expect(md.length).toBeGreaterThan(PAPER.maxChars);
+    expect(summarizeNarrative(md, PAPER)).toBe(
+      'Discussion carried forward to next month because the quotes had not arrived in time.',
+    );
+  });
+
+  it('keeps an initial inside its sentence', () => {
+    const md =
+      'The board reviewed the shed inventory at some length before reaching any conclusion. ' +
+      'Motion by Bill C. Camp to donate the puppetry materials was approved.';
+    expect(summarizeNarrative(md, PAPER)).toContain('Bill C. Camp');
+  });
+});

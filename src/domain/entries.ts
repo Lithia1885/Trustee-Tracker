@@ -171,29 +171,149 @@ export interface SummarizeOptions {
 }
 
 /**
+ * Words that mark a sentence as the outcome rather than the context.
+ *
+ * The brief's list — motion, second, carried, approved, canceled,
+ * complete, declined, on hold — plus the inflections of each and the
+ * few other verbs the board's own minutes use for the same act
+ * (tabled, authorized, unanimous, denied, deferred, voted). The status
+ * vocabulary in `Item.Status` is here for the same reason: a sentence
+ * that says a project was tabled is reporting a decision.
+ *
+ * Two words on the list are deliberately narrowed, because the plain
+ * word means something else far more often in this data than the
+ * decision does:
+ *
+ * - "second" only counts as "seconded" or "second by". The board has a
+ *   Second Floor Water Fountain on its books.
+ * - "carried" does not count in "carried forward" or "carried over",
+ *   which describe an item that was *not* decided.
+ */
+const DECISION_LANGUAGE =
+  /\b(?:motion(?:ed|s)?|seconded|second by|carried(?!\s+(?:forward|over|on))|approv(?:e|es|ed|al)|unanimous(?:ly)?|authoriz(?:e|es|ed|ation)|cancel(?:l?ed|l?ation|s)?|complet(?:e|ed|ion)|declin(?:e|es|ed)|den(?:y|ies|ied|ial)|reject(?:s|ed)?|tabled|postpon(?:e|es|ed)|deferred|on hold|votes?|voted)\b/i;
+
+/** Sentence-ending punctuation that is really an abbreviation. */
+const ABBREVIATION_END = /(?:^|\s)(?:[A-Z]|Mr|Mrs|Ms|Dr|Rev|Fr|St|Jr|Sr|No|Approx|Est|vs|etc|a\.m|p\.m|A\.M|P\.M)\.$/;
+
+/**
+ * Plain text broken into sentences.
+ *
+ * A break is whitespace after `.`, `!` or `?` followed by something
+ * that opens a sentence. Initials and the handful of abbreviations the
+ * minutes actually use are stitched back on, so "Motion by Bill C.
+ * Camp" stays one sentence.
+ */
+function splitSentences(text: string): string[] {
+  // The delimiter is captured and stitched back on, so the terminator
+  // stays with the sentence it ends. Requiring whitespace after it is
+  // what keeps "ANAGO $951.25" in one piece.
+  const pieces = text.split(/([.!?]["'\u2019\u201d)]*)\s+(?=["'\u2018\u201c(]?[A-Z0-9])/);
+  const parts: string[] = [];
+  for (let i = 0; i < pieces.length; i += 2) {
+    parts.push(pieces[i] + (pieces[i + 1] ?? ''));
+  }
+  const merged: string[] = [];
+  for (const part of parts) {
+    const previous = merged[merged.length - 1];
+    if (previous !== undefined && ABBREVIATION_END.test(previous)) {
+      merged[merged.length - 1] = `${previous} ${part}`;
+    } else {
+      merged.push(part);
+    }
+  }
+  return merged.map((s) => s.trim()).filter(Boolean);
+}
+
+/**
+ * Words that cannot be the last thing an elision says. Stopping on
+ * "received since the…" reads as a truncation bug; stopping on
+ * "received…" reads as an elision.
+ */
+const DANGLING_WORDS = [
+  'a', 'an', 'the', 'and', 'or', 'but', 'as', 'that', 'this', 'its', 'his', 'her', 'their',
+  'our', 'is', 'are', 'was', 'were',
+  'of', 'to', 'in', 'on', 'at', 'by', 'for', 'from', 'with', 'into', 'over', 'under', 'per',
+  'since', 'after', 'before', 'during', 'until', 'while', 'when', 'than', 'upon', 'about',
+  'between', 'through', 'without', 'within', 'against', 'toward', 'towards',
+];
+const DANGLING_WORD = new RegExp(`(?:\\s|^)(?:${DANGLING_WORDS.join('|')})$`, 'i');
+
+/** Cut to length on a word boundary — "Platinum Pr…" reads as a bug. */
+function clampToWord(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const cut = text.slice(0, maxChars - 1);
+  const lastSpace = cut.lastIndexOf(' ');
+  let body = lastSpace > maxChars / 2 ? cut.slice(0, lastSpace) : cut;
+  body = body.replace(/[\s,;:.]+$/, '');
+  while (DANGLING_WORD.test(body)) {
+    body = body.replace(DANGLING_WORD, '').replace(/[\s,;:.]+$/, '');
+  }
+  return body + '\u2026';
+}
+
+/**
  * A narrative shortened for a place that has room for a line or two:
  * the agenda row on screen, and the agenda body on paper.
  *
- * Purely a rendering concern — the stored narrative is untouched, and
+ * Narratives are written as a story — what prompted the discussion,
+ * then what was said, then what the board did about it. Taking the
+ * opening sentence therefore tends to return the least useful sentence
+ * in the paragraph: the furniture narrative opened with why a called
+ * meeting was held and ended with the September sale being cancelled,
+ * and only the second of those is the reason the line is on the
+ * agenda. So the outcome is what gets found first, and the opening is
+ * carried in front of it when there is room, because a decision on its
+ * own often has no subject: "The 18-19 September sale was canceled."
+ *
+ * The outcome is hunted across the whole narrative — a decision in the
+ * second paragraph is still the decision. Everything else reads the
+ * first paragraph only, as before.
+ *
+ * Purely a rendering concern: the stored narrative is untouched, and
  * the printed follow-up pages carry it in full.
  */
 export function summarizeNarrative(markdown: string, options: SummarizeOptions = {}): string {
   const { maxChars = 140, minSentence = 40, maxSentence = 200 } = options;
-  const firstPara = markdown.split(/\n\s*\n/)[0] ?? '';
-  const stripped = stripMarkdown(firstPara);
-  if (stripped.length <= maxChars) return stripped;
+  const whole = stripMarkdown(markdown);
+  // A narrative that opens on a blank line has no first paragraph to
+  // read; treat the text as one.
+  const opening = stripMarkdown(markdown.split(/\n\s*\n/)[0] ?? '') || whole;
+  const sentences = splitSentences(whole);
+  const lead = sentences[0] ?? opening;
 
-  // Prefer a real sentence break, but only one late enough to carry
-  // some information and early enough to still be a summary.
-  const breakIdx = stripped.slice(minSentence).search(/[.!?](\s|$)/);
-  if (breakIdx >= 0 && breakIdx + minSentence < maxSentence) {
-    return stripped.slice(0, breakIdx + minSentence + 1);
+  // The last match, not the first: a narrative that records a motion
+  // and then what became of it is reporting the latter.
+  let outcome: string | undefined;
+  for (const sentence of sentences) {
+    if (DECISION_LANGUAGE.test(sentence)) outcome = sentence;
   }
-  // Cut on a word, never through one: "Platinum Pr…" reads as a bug.
-  const cut = stripped.slice(0, maxChars - 1);
-  const lastSpace = cut.lastIndexOf(' ');
-  const body = lastSpace > maxChars / 2 ? cut.slice(0, lastSpace) : cut;
-  return body.replace(/[\s,;:.]+$/, '') + '…';
+
+  // The opening paragraph already carries the outcome, or there is no
+  // outcome to carry, and it fits. Print it as written.
+  if (opening.length <= maxChars && (!outcome || opening.includes(outcome))) {
+    return opening;
+  }
+
+  if (outcome && outcome !== lead) {
+    if (outcome.length <= maxChars) {
+      const room = maxChars - outcome.length - 1;
+      if (lead.length <= room) return `${lead} ${outcome}`;
+      // Not enough room for the whole opening, but an elided opening
+      // still supplies the subject the outcome is missing.
+      if (room >= minSentence) return `${clampToWord(lead, room)} ${outcome}`;
+    }
+    return clampToWord(outcome, maxChars);
+  }
+
+  // Either nothing was decided here or the decision is the first thing
+  // said, so the opening is the summary. Prefer a real sentence break,
+  // but only one late enough to carry some information and early
+  // enough to still be a summary.
+  const breakIdx = opening.slice(minSentence).search(/[.!?](\s|$)/);
+  if (breakIdx >= 0 && breakIdx + minSentence < maxSentence) {
+    return opening.slice(0, breakIdx + minSentence + 1);
+  }
+  return clampToWord(opening, maxChars);
 }
 
 /** Markdown reduced to the plain sentence underneath it. */
