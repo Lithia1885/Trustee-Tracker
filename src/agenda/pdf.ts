@@ -14,7 +14,6 @@ const PARA_GAP = 8;
 const SECTION_GAP = 14;
 
 const DEFAULT_TIME = '6 PM';
-const DEFAULT_LOCATION = 'Living Faith Class room on 3rd floor';
 
 const UNASSIGNED_HEADING = 'Not assigned to anyone yet';
 
@@ -30,8 +29,6 @@ export interface AgendaPdfInput {
   targetDate: string;
   meeting?: Meeting;
   prevMeeting?: Meeting;
-  /** Every meeting, so the header can fall back to the last known location. */
-  meetings?: Meeting[];
   agenda: Agenda;
   /** All action items; only the open ones reach the appendix. */
   actionItems?: ActionItem[];
@@ -107,8 +104,9 @@ export function generateAgendaPdf(input: AgendaPdfInput): jsPDF {
   // ── Header ───────────────────────────────────────────────────
   w.line('AGENDA', { size: 14, bold: true, gap: 6 });
 
-  const location = resolveMeetingLocation(targetDate, meeting, input.meetings);
-  w.line(`${formatHeaderDate(targetDate)} - ${DEFAULT_TIME} ${location}.`, { gap: PARA_GAP });
+  // No room on the agenda: where the board actually met is recorded in
+  // the minutes afterwards, not announced beforehand.
+  w.line(`${formatHeaderDate(targetDate)} - ${DEFAULT_TIME}.`, { gap: PARA_GAP });
 
   w.line('Opening Prayer', { gap: PARA_GAP });
 
@@ -186,29 +184,6 @@ export function composeItemLine(entry: AgendaEntry, targetDate: string): string 
   const status = entry.summary?.text.trim();
   if (!status) return head;
   return `${head}. ${summarizeNarrative(status, BODY_SUMMARY)}`;
-}
-
-/**
- * Where the meeting is actually held.
- *
- * The board moved to the Fellowship Hall and stayed there, so the
- * hardcoded room was wrong on every printout. Prefer what the meeting
- * being printed records, then the last meeting that recorded one at
- * all, and only then the configured default.
- */
-export function resolveMeetingLocation(
-  targetDate: string,
-  meeting?: Meeting,
-  meetings?: readonly Meeting[],
-): string {
-  const booked = meeting?.location?.trim();
-  if (booked) return booked;
-
-  const lastKnown = (meetings ?? [])
-    .filter((m) => !!m.location?.trim() && m.meetingDate <= targetDate)
-    .sort((a, b) => a.meetingDate.localeCompare(b.meetingDate))
-    .pop();
-  return lastKnown?.location?.trim() || DEFAULT_LOCATION;
 }
 
 // ── Follow-up appendix ─────────────────────────────────────────

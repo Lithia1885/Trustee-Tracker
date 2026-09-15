@@ -397,7 +397,6 @@ async function exportAgendaPdf(input: {
     targetDate,
     meeting,
     prevMeeting,
-    meetings,
     agenda,
     items,
     actionItems,

@@ -196,7 +196,7 @@ Each agenda entry also carries:
 
 - **The body is trimmed, the follow-up is not.** Narratives are cut to a first-sentence summary (`summarizeNarrative`) so the board can work from paper at the table; the untrimmed text is reprinted under FULL NOTES in the follow-up pages. Trimming is render-time only — nothing stored changes.
 - **Every line carries the date of the entry behind it.** `(Aug 18)` for a recent one, `(no update since Apr 21)` when it is stale, `(not yet discussed)` when the text came from background notes.
-- **The meeting room is derived, never assumed.** `resolveMeetingLocation` takes the location off the meeting being printed, else the most recent meeting that recorded one, else the configured default.
+- **The header names the date and time, never the room.** Where the board met is a fact for the minutes, recorded after the meeting; the agenda does not announce it. `Meeting.Location` still exists and is still edited and shown on the meeting record — it just does not reach the printed agenda.
 - **A deadline is only called late when it is a date.** `DueHint` is free text; `parseDueDate` marks `— PAST DUE` only where the wording plainly contains a date that has gone by. "next meeting" is never flagged.
 
 ## Patterns to Avoid
@@ -339,7 +339,7 @@ carry.
 | Token | Source |
 |---|---|
 | `{{MEETING_DATE}}` | `formatDateTime(triggerOutputs() targetDate, 'MMMM d, yyyy')` |
-| `{{MEETING_TIME}}` | `Meeting.Location ? '6 PM ' + Meeting.Location : '6 PM Living Faith Class room on 3rd floor'` |
+| `{{MEETING_TIME}}` | `'6 PM'` — no room; see the printed agenda rules above |
 | `{{PRIOR_MEETING_MONTH}}` | most recent Meeting where MeetingDate < target, `formatDateTime(..., 'MMMM yyyy')` |
 | `{{OPEN_CLOSE}}` | `'Open/Close: ' + thisMonthName + ', ' + Meeting.OpenCloseThisMonth + ' – ' + nextMonthName + ', ' + Meeting.OpenCloseNextMonth` |
 | `{{UPDATES_ROWS}}` / `{{OLD_ROWS}}` / `{{NEW_ROWS}}` | joined `<tr>` output from each section's `Select` |
