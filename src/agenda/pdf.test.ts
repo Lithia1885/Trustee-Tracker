@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  collectHeldProjects,
-  generateAgendaPdf,
-  groupOpenActionsByOwner,
-  resolveMeetingLocation,
-} from './pdf';
+import { collectHeldProjects, generateAgendaPdf, groupOpenActionsByOwner } from './pdf';
 import { generateAgenda } from './generator';
 import { extractPdfText, extractPdfTextByPage } from '../test/pdfText';
 import { makeAction, makeEntry, makeItem, makeMeeting } from '../test/fixtures';
@@ -318,52 +313,33 @@ describe('collectHeldProjects', () => {
   });
 });
 
-describe('resolveMeetingLocation', () => {
+describe('generateAgendaPdf — header', () => {
   const august = makeMeeting({
     id: '39',
     meetingDate: '2026-08-18',
     location: 'Fellowship Hall',
   });
-  const july = makeMeeting({ id: '38', meetingDate: '2026-07-21', location: 'Chapel' });
-  const septemberNoRoom = makeMeeting({ id: '40', meetingDate: TARGET });
 
-  it('uses the location on the meeting being printed', () => {
-    const meeting = makeMeeting({ id: '40', meetingDate: TARGET, location: 'Sanctuary' });
-    expect(resolveMeetingLocation(TARGET, meeting, [july, august, meeting])).toBe('Sanctuary');
-  });
-
-  it('carries forward the last room the board actually used', () => {
-    expect(resolveMeetingLocation(TARGET, septemberNoRoom, [july, august, septemberNoRoom])).toBe(
-      'Fellowship Hall',
-    );
-  });
-
-  it('ignores rooms recorded for meetings after this one', () => {
-    const october = makeMeeting({ id: '41', meetingDate: '2026-10-20', location: 'Somewhere else' });
-    expect(resolveMeetingLocation(TARGET, undefined, [july, august, october])).toBe(
-      'Fellowship Hall',
-    );
-  });
-
-  it('falls back to the configured default when nothing is recorded', () => {
-    expect(resolveMeetingLocation(TARGET, undefined, [])).toBe(
-      'Living Faith Class room on 3rd floor',
-    );
-    expect(resolveMeetingLocation(TARGET, undefined, undefined)).toBe(
-      'Living Faith Class room on 3rd floor',
-    );
-  });
-
-  it('puts the resolved room in the printed header', () => {
-    const text = extractPdfText(
+  function header(meeting?: Parameters<typeof generateAgendaPdf>[0]['meeting']): string {
+    return extractPdfText(
       generateAgendaPdf({
         targetDate: TARGET,
-        meetings: [july, august],
+        meeting,
         agenda: agendaFor([makeItem({ id: 'a', title: 'Roof' })]),
         includeFollowUp: false,
       }),
     );
-    expect(text).toContain('September 15, 2026 - 6 PM Fellowship Hall.');
+  }
+
+  it('states the date and time, and no room', () => {
+    expect(header()).toContain('September 15, 2026 - 6 PM.');
+  });
+
+  it('still names no room when the meeting record has one', () => {
+    // Where the board met belongs in the minutes, written afterwards.
+    const text = header(august);
+    expect(text).toContain('September 15, 2026 - 6 PM.');
+    expect(text).not.toContain('Fellowship Hall');
   });
 });
 

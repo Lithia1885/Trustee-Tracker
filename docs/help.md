@@ -61,7 +61,7 @@ On the Agenda screen, tap **Print agenda**. It downloads a PDF named with the me
 
 The agenda itself is deliberately short: each project gets a line or two, so you can work from it at the table. Every line is stamped with the date of the note behind it — `(Aug 18)` for something reported last month, `(no update since Apr 21)` when nothing has come in for a while, `(not yet discussed)` when the text is background rather than a meeting note.
 
-The meeting room in the header comes from the meeting record. Set **Location** on the meeting and the printout follows it; if that meeting has no location, it uses the last one the board did record.
+The header gives the date and the time, and does not name a room — where the board actually met is something the secretary records in the minutes afterwards. **Location** on the meeting record is still there for that, and still shows on the meeting page.
 
 Next to the date picker there's a checkbox, **Add follow-up pages to the printout**, on by default. It adds a clearly labelled **Follow-up** section after the agenda:
 
